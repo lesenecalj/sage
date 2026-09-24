@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export type Note = {
   id: string;
   title: string;
@@ -7,17 +9,16 @@ export type Note = {
 
 export type CreateNoteInput = Pick<Note, 'title' | 'content'>;
 
-type NotesResponse = {
-  notes: Note[];
-};
+const noteSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  content: z.string(),
+  createdAt: z.string().datetime(),
+}).strict();
 
-type NoteResponse = {
-  note: Note;
-};
-
-type ErrorResponse = {
-  error: string;
-};
+const notesResponseSchema = z.object({ notes: z.array(noteSchema) }).strict();
+const noteResponseSchema = z.object({ note: noteSchema }).strict();
+const errorResponseSchema = z.object({ error: z.string() }).strict();
 
 export class ApiError extends Error {
   constructor(
@@ -30,8 +31,21 @@ export class ApiError extends Error {
 }
 
 async function throwApiError(response: Response): Promise<never> {
-  const body = (await response.json().catch(() => null)) as ErrorResponse | null;
-  throw new ApiError(body?.error ?? 'An unexpected API error occurred.', response.status);
+  const body = await response.json().catch(() => null);
+  const result = errorResponseSchema.safeParse(body);
+
+  throw new ApiError(result.success ? result.data.error : 'An unexpected API error occurred.', response.status);
+}
+
+async function parseResponse<T>(response: Response, schema: z.ZodType<T>): Promise<T> {
+  const body = await response.json().catch(() => null);
+  const result = schema.safeParse(body);
+
+  if (!result.success) {
+    throw new ApiError('The API returned an invalid response.', response.status);
+  }
+
+  return result.data;
 }
 
 export async function listNotes(signal?: AbortSignal): Promise<Note[]> {
@@ -41,7 +55,7 @@ export async function listNotes(signal?: AbortSignal): Promise<Note[]> {
     return throwApiError(response);
   }
 
-  const body = (await response.json()) as NotesResponse;
+  const body = await parseResponse(response, notesResponseSchema);
   return body.notes;
 }
 
@@ -56,6 +70,6 @@ export async function createNote(input: CreateNoteInput): Promise<Note> {
     return throwApiError(response);
   }
 
-  const body = (await response.json()) as NoteResponse;
+  const body = await parseResponse(response, noteResponseSchema);
   return body.note;
 }

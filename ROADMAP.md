@@ -44,7 +44,11 @@ Turn personal notes into a searchable AI assistant.
 
 ## Current Status
 
-The application foundation is complete: React/Vite frontend, Express API, development proxy, and an API health check. No V1 user-facing note or retrieval capability is implemented yet.
+The application foundation is complete: React/Vite frontend, Express API, development proxy, and an API health check. Users can create and list notes through an in-memory MVP implementation. Persistence and retrieval are not implemented yet.
+
+## Technical TODO
+
+- Extract shared Note request and response Zod schemas into a `packages/contracts` workspace when the API contract grows beyond the current create/list slice.
 
 ---
 
