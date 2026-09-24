@@ -1,0 +1,21 @@
+{
+  "name": "sage",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Software Assistant for Guided Engineering",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names api,web --prefix-colors blue,green \"npm run dev --workspace @sage/api\" \"npm run dev --workspace @sage/web\"",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
