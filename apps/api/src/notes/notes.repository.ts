@@ -60,7 +60,9 @@ export function createPrismaNotesRepository(
       return toNote(note);
     },
     async list() {
-      const notes = await prisma.note.findMany({ orderBy: { createdAt: 'asc' } });
+      const notes = await prisma.note.findMany({
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      });
       return notes.map(toNote);
     },
   };

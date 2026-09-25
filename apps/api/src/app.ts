@@ -37,7 +37,13 @@ export function createApp({ notesRepository }: AppDependencies) {
       return;
     }
 
-    next(error);
+    if (response.headersSent) {
+      next(error);
+      return;
+    }
+
+    console.error(error);
+    response.status(500).json({ error: 'internal server error' });
   };
 
   app.use(errorHandler);

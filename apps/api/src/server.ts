@@ -1,3 +1,4 @@
+import type { Server } from 'node:http';
 import { fileURLToPath } from 'node:url';
 
 import { PrismaClient } from '@prisma/client';
@@ -13,12 +14,28 @@ const prisma = new PrismaClient();
 const app = createApp({ notesRepository: createPrismaNotesRepository(prisma) });
 let isShuttingDown = false;
 
+function listen(): Promise<Server> {
+	return new Promise((resolve, reject) => {
+		const server = app.listen(port);
+		const onListening = () => {
+			server.off('error', onError);
+			resolve(server);
+		};
+		const onError = (error: Error) => {
+			server.off('listening', onListening);
+			reject(error);
+		};
+
+		server.once('listening', onListening);
+		server.once('error', onError);
+	});
+}
+
 async function startServer() {
 	await prisma.$connect();
 
-	const server = app.listen(port, () => {
-		console.info(`SAGE API listening on http://localhost:${port}`);
-	});
+	const server = await listen();
+	console.info(`SAGE API listening on http://localhost:${port}`);
 
 	async function shutdown(signal: string) {
 		if (isShuttingDown) {
@@ -43,7 +60,7 @@ async function startServer() {
 }
 
 void startServer().catch(async (error: unknown) => {
-	console.error('Unable to connect to PostgreSQL.', error);
+	console.error('Unable to start SAGE API.', error);
 	await prisma.$disconnect();
 	process.exitCode = 1;
 });
