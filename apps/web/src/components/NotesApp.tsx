@@ -35,9 +35,10 @@ export function NotesApp() {
           </div>
 
           {errorMessage ? (
-            <p className="mt-5 border-l-4 border-[#a33f32] bg-[#f4d8d1] px-4 py-3 font-sans text-sm text-[#702d24]" role="alert">
-              {errorMessage}
-            </p>
+            <div className="mt-5 border-l-4 border-[#a33f32] bg-[#f4d8d1] px-4 py-3 font-sans text-sm text-[#702d24]" role="alert">
+              <p className="m-0 font-bold">We couldn’t complete that request</p>
+              <p className="mb-0 mt-1">{errorMessage}</p>
+            </div>
           ) : null}
 
           {isLoading ? (

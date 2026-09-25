@@ -3,12 +3,12 @@
 ## Current Foundation
 
 - Frontend: React 19, TypeScript, Vite, Tailwind CSS 4
-- Backend: Node.js 22+, TypeScript, Express 5, native ESM
+- Backend: Node.js 22+, TypeScript, Express 5, Prisma 6, native ESM
 - API validation: Zod 4 with strict request schemas
-- Persistence: in-memory notes repository for the current MVP slice
-- Testing: Vitest and Supertest
+- Persistence: PostgreSQL 16 with Prisma migrations, managed locally with Docker Compose
+- Testing: Vitest, Supertest, React Testing Library, and jsdom
 
-PostgreSQL, Prisma, OpenAI, Redis, background workers, and Docker Compose are planned technologies. They are not yet installed or configured.
+OpenAI, Redis, and background workers are planned technologies. They are not yet installed or configured.
 
 ## Frontend
 
@@ -71,7 +71,7 @@ Future:
 - Zod schemas validate untrusted request bodies at runtime and reject unknown fields.
 - Tests cover both HTTP contracts with Supertest and service behavior in isolation with Vitest.
 
-The current Notes flow follows `route -> service -> repository`. The in-memory repository is intentionally temporary and will be replaced by a Prisma implementation when durable persistence is introduced.
+The current Notes flow follows `route -> service -> repository`. Runtime composition injects the Prisma repository; tests inject the in-memory repository for isolation.
 
 ## Guiding Principles
 
