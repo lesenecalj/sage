@@ -12,22 +12,22 @@ type CreateNoteResult =
   | { success: false; error: 'INVALID_INPUT' };
 
 export type NotesService = {
-  create(input: unknown): CreateNoteResult;
-  list(): Note[];
+  create(input: unknown): Promise<CreateNoteResult>;
+  list(): Promise<Note[]>;
 };
 
 export function createNotesService(repository: NotesRepository): NotesService {
   return {
-    create(input) {
+    async create(input) {
       const result = createNoteSchema.safeParse(input);
 
       if (!result.success) {
         return { success: false, error: 'INVALID_INPUT' };
       }
 
-      return { success: true, note: repository.create(result.data) };
+      return { success: true, note: await repository.create(result.data) };
     },
-    list() {
+    async list() {
       return repository.list();
     },
   };

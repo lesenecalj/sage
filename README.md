@@ -11,6 +11,9 @@ Software Assistant for Guided Engineering: a personal AI learning assistant buil
 
 ```bash
 npm install
+cp apps/api/.env.example apps/api/.env
+docker compose up -d postgres
+npm run db:migrate --workspace @sage/api
 npm run dev
 ```
 
@@ -21,7 +24,7 @@ The Vite development server proxies requests from `/api/*` to the API. Confirm t
 ## Architecture
 
 - `apps/web`: React 19, TypeScript, Vite, and Tailwind CSS 4.
-- `apps/api`: Express 5, TypeScript, and a native Node.js ESM build.
+- `apps/api`: Express 5, TypeScript, Prisma, PostgreSQL, and a native Node.js ESM build.
 - `apps/api/tsconfig.build.json`: production build configuration; test files are excluded from `dist`.
 
 ## Commands
@@ -30,10 +33,13 @@ The Vite development server proxies requests from `/api/*` to the API. Confirm t
 npm run build  # Build frontend and backend
 npm run lint   # Type-check frontend and backend
 npm run test   # Run unit tests
+npm run db:generate --workspace @sage/api  # Generate Prisma Client
+npm run db:migrate --workspace @sage/api   # Create and apply a development migration
+npm run db:studio --workspace @sage/api    # Inspect the database with Prisma Studio
 ```
 
-The API health endpoint is covered by a Vitest and Supertest integration test. The frontend test command is ready but has no frontend tests yet.
+API behavior is covered by Vitest and Supertest; frontend behavior is covered by Vitest and React Testing Library.
 
 ## Current scope
 
-The foundation implements the V1 application boundary: React frontend, Express API, API health check, and development proxy. Notes persistence, Prisma/PostgreSQL, Redis, and AI retrieval will be added incrementally with the corresponding roadmap phases.
+The current V1 slice supports creating and listing notes with PostgreSQL persistence. Update/delete, import, search, Redis, and AI retrieval will be added incrementally with the corresponding roadmap phases.

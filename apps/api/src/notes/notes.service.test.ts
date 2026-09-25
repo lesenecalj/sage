@@ -10,8 +10,8 @@ describe('NotesService', () => {
     service = createNotesService(createInMemoryNotesRepository());
   });
 
-  it('normalizes valid input before creating a note', () => {
-    const result = service.create({ title: '  Architecture  ', content: '  Keep it simple.  ' });
+  it('normalizes valid input before creating a note', async () => {
+    const result = await service.create({ title: '  Architecture  ', content: '  Keep it simple.  ' });
 
     expect(result).toMatchObject({
       success: true,
@@ -22,11 +22,11 @@ describe('NotesService', () => {
     });
   });
 
-  it('rejects invalid input without creating a note', () => {
-    expect(service.create({ title: '', content: 'Content' })).toEqual({
+  it('rejects invalid input without creating a note', async () => {
+    await expect(service.create({ title: '', content: 'Content' })).resolves.toEqual({
       success: false,
       error: 'INVALID_INPUT',
     });
-    expect(service.list()).toEqual([]);
+    await expect(service.list()).resolves.toEqual([]);
   });
 });

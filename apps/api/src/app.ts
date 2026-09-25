@@ -1,7 +1,7 @@
 import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
 
-import { createInMemoryNotesRepository } from './notes/notes.repository.js';
+import type { NotesRepository } from './notes/notes.repository.js';
 import { createNotesRouter } from './notes/notes.router.js';
 import { createNotesService } from './notes/notes.service.js';
 
@@ -14,9 +14,12 @@ function isInvalidJsonBody(error: unknown): boolean {
   );
 }
 
-export function createApp() {
+type AppDependencies = {
+  notesRepository: NotesRepository;
+};
+
+export function createApp({ notesRepository }: AppDependencies) {
   const app = express();
-  const notesRepository = createInMemoryNotesRepository();
   const notesService = createNotesService(notesRepository);
 
   app.use(cors({ origin: process.env.WEB_ORIGIN ?? 'http://localhost:5173' }));
