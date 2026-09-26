@@ -7,28 +7,28 @@ import { NoteForm } from './NoteForm';
 describe('NoteForm', () => {
   it('shows a field error and does not submit empty input', async () => {
     const user = userEvent.setup();
-    const onCreate = vi.fn().mockResolvedValue(true);
+    const onSave = vi.fn().mockResolvedValue(true);
 
-    render(<NoteForm isSubmitting={false} onCreate={onCreate} />);
+    render(<NoteForm isSubmitting={false} onSave={onSave} />);
 
     await user.click(screen.getByRole('button', { name: 'Save note' }));
 
     expect(await screen.findByText('A title is required.')).toBeInTheDocument();
     expect(await screen.findByText('Content is required.')).toBeInTheDocument();
-    expect(onCreate).not.toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it('submits normalized input and resets after a successful creation', async () => {
     const user = userEvent.setup();
-    const onCreate = vi.fn().mockResolvedValue(true);
+    const onSave = vi.fn().mockResolvedValue(true);
 
-    render(<NoteForm isSubmitting={false} onCreate={onCreate} />);
+    render(<NoteForm isSubmitting={false} onSave={onSave} />);
 
     await user.type(screen.getByLabelText('Title'), '  Architecture  ');
     await user.type(screen.getByLabelText('Content'), '  Keep it simple.  ');
     await user.click(screen.getByRole('button', { name: 'Save note' }));
 
-    expect(onCreate).toHaveBeenCalledWith({
+    expect(onSave).toHaveBeenCalledWith({
       title: 'Architecture',
       content: 'Keep it simple.',
     });
@@ -37,7 +37,7 @@ describe('NoteForm', () => {
   });
 
   it('disables submission while a note is being created', () => {
-    render(<NoteForm isSubmitting onCreate={vi.fn()} />);
+    render(<NoteForm isSubmitting onSave={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: 'Saving note...' })).toBeDisabled();
   });

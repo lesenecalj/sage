@@ -40,6 +40,59 @@ describe('notes routes', () => {
     expect(listResponse.body.notes).toEqual([createResponse.body.note]);
   });
 
+  it('updates an existing note', async () => {
+    const createResponse = await request(app).post('/notes').send({
+      title: 'Original title',
+      content: 'Original content',
+    });
+    const noteId = createResponse.body.note.id as string;
+
+    const updateResponse = await request(app).patch(`/notes/${noteId}`).send({
+      title: 'Updated title',
+      content: 'Updated content',
+    });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.note).toMatchObject({
+      id: noteId,
+      title: 'Updated title',
+      content: 'Updated content',
+    });
+  });
+
+  it('rejects updates for missing notes', async () => {
+    const response = await request(app).patch('/notes/7d5b9456-eb94-414f-a129-da4aa1bb2c45').send({
+      title: 'Updated title',
+      content: 'Updated content',
+    });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: 'note not found' });
+  });
+
+  it('deletes an existing note', async () => {
+    const createResponse = await request(app).post('/notes').send({
+      title: 'To delete',
+      content: 'Temporary content',
+    });
+    const noteId = createResponse.body.note.id as string;
+
+    const deleteResponse = await request(app).delete(`/notes/${noteId}`);
+
+    expect(deleteResponse.status).toBe(204);
+    await expect(request(app).get('/notes')).resolves.toMatchObject({
+      status: 200,
+      body: { notes: [] },
+    });
+  });
+
+  it('returns not found when deleting a missing note', async () => {
+    const response = await request(app).delete('/notes/7d5b9456-eb94-414f-a129-da4aa1bb2c45');
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: 'note not found' });
+  });
+
   it('rejects invalid note input', async () => {
     const response = await request(app).post('/notes').send({ title: '   ' });
 

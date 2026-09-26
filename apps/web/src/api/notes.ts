@@ -73,3 +73,26 @@ export async function createNote(input: CreateNoteInput): Promise<Note> {
   const body = await parseResponse(response, noteResponseSchema);
   return body.note;
 }
+
+export async function updateNote(id: string, input: CreateNoteInput): Promise<Note> {
+  const response = await fetch(`/api/notes/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    return throwApiError(response);
+  }
+
+  const body = await parseResponse(response, noteResponseSchema);
+  return body.note;
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  const response = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+
+  if (!response.ok) {
+    return throwApiError(response);
+  }
+}

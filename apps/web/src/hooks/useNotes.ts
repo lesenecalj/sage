@@ -3,10 +3,14 @@ import { useEffect, useState } from 'react';
 import {
   ApiError,
   createNote,
+  deleteNote,
   listNotes,
   type CreateNoteInput,
   type Note,
+  updateNote,
 } from '../api/notes';
+
+type NoteMutationResult<T> = { success: true; value: T } | { success: false };
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof ApiError || error instanceof Error) {
@@ -20,6 +24,7 @@ export function useNotes() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [pendingNoteIds, setPendingNoteIds] = useState<ReadonlySet<string>>(() => new Set());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -27,8 +32,7 @@ export function useNotes() {
 
     async function loadNotes() {
       try {
-        const loadedNotes = await listNotes(controller.signal);
-        setNotes(loadedNotes);
+        setNotes(await listNotes(controller.signal));
       } catch (error) {
         if (!controller.signal.aborted) {
           setErrorMessage(getErrorMessage(error));
@@ -61,5 +65,50 @@ export function useNotes() {
     }
   }
 
-  return { notes, isLoading, isCreating, errorMessage, create };
+  async function runNoteMutation<T>(
+    id: string,
+    operation: () => Promise<T>,
+  ): Promise<NoteMutationResult<T>> {
+    setPendingNoteIds((currentIds) => new Set(currentIds).add(id));
+    setErrorMessage(null);
+
+    try {
+      return { success: true, value: await operation() };
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+      return { success: false };
+    } finally {
+      setPendingNoteIds((currentIds) => {
+        const nextIds = new Set(currentIds);
+        nextIds.delete(id);
+        return nextIds;
+      });
+    }
+  }
+
+  async function update(id: string, input: CreateNoteInput): Promise<boolean> {
+    const result = await runNoteMutation(id, () => updateNote(id, input));
+
+    if (!result.success) {
+      return false;
+    }
+
+    setNotes((currentNotes) =>
+      currentNotes.map((note) => (note.id === id ? result.value : note)),
+    );
+    return true;
+  }
+
+  async function remove(id: string): Promise<boolean> {
+    const result = await runNoteMutation(id, () => deleteNote(id));
+
+    if (!result.success) {
+      return false;
+    }
+
+    setNotes((currentNotes) => currentNotes.filter((note) => note.id !== id));
+    return true;
+  }
+
+  return { notes, isLoading, isCreating, pendingNoteIds, errorMessage, create, update, remove };
 }

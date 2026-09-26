@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError, createNote, listNotes } from './notes';
+import { ApiError, createNote, deleteNote, listNotes, updateNote } from './notes';
 
 const note = {
   id: '7d5b9456-eb94-414f-a129-da4aa1bb2c45',
@@ -37,5 +37,19 @@ describe('Notes API client', () => {
     await expect(createNote({ title: 'Architecture', content: 'Keep it simple.' })).rejects.toEqual(
       new ApiError('Invalid note input', 400),
     );
+  });
+
+  it('updates an existing note', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ note })));
+
+    await expect(updateNote(note.id, { title: note.title, content: note.content })).resolves.toEqual(note);
+    expect(fetch).toHaveBeenCalledWith(`/api/notes/${note.id}`, expect.objectContaining({ method: 'PATCH' }));
+  });
+
+  it('deletes an existing note', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+    await expect(deleteNote(note.id)).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledWith(`/api/notes/${note.id}`, { method: 'DELETE' });
   });
 });
