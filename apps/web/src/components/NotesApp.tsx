@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import { NoteForm } from './NoteForm';
 import { useNotes } from '../hooks/useNotes';
 
@@ -9,7 +11,27 @@ function formatCreatedAt(value: string): string {
 }
 
 export function NotesApp() {
-  const { notes, isLoading, isCreating, errorMessage, create } = useNotes();
+  const { notes, isLoading, isCreating, pendingNoteIds, errorMessage, create, update, remove } = useNotes();
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState<string | null>(null);
+
+  async function handleUpdate(noteId: string, input: { title: string; content: string }) {
+    const didUpdate = await update(noteId, input);
+
+    if (didUpdate) {
+      setEditingNoteId(null);
+    }
+
+    return didUpdate;
+  }
+
+  async function handleDelete(noteId: string) {
+    const didDelete = await remove(noteId);
+
+    if (didDelete) {
+      setConfirmDeleteNoteId(null);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#f4f0e6] text-[#20302b]">
@@ -58,15 +80,83 @@ export function NotesApp() {
               {notes.map((note) => (
                 <li key={note.id}>
                   <article className="border border-[#c6cec6] bg-white p-5">
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                      <h3 className="m-0 text-xl font-normal">{note.title}</h3>
-                      <time className="font-sans text-xs text-[#5b7166]" dateTime={note.createdAt}>
-                        {formatCreatedAt(note.createdAt)}
-                      </time>
-                    </div>
-                    <p className="mb-0 mt-3 whitespace-pre-wrap font-sans leading-relaxed text-[#34473f]">
-                      {note.content}
-                    </p>
+                    {editingNoteId === note.id ? (
+                      <div>
+                        <h3 className="mb-4 mt-0 text-xl font-normal">Edit note</h3>
+                        <NoteForm
+                          key={note.id}
+                          initialValues={{ title: note.title, content: note.content }}
+                          isSubmitting={pendingNoteIds.has(note.id)}
+                          onSave={(input) => handleUpdate(note.id, input)}
+                          submitLabel="Save changes"
+                        />
+                        <button
+                          className="mt-3 min-h-10 border border-[#9ba9a0] px-3 font-sans text-sm font-bold hover:bg-[#edf1eb]"
+                          onClick={() => setEditingNoteId(null)}
+                          type="button"
+                        >
+                          Cancel editing
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                          <h3 className="m-0 text-xl font-normal">{note.title}</h3>
+                          <time className="font-sans text-xs text-[#5b7166]" dateTime={note.createdAt}>
+                            {formatCreatedAt(note.createdAt)}
+                          </time>
+                        </div>
+                        <p className="mb-0 mt-3 whitespace-pre-wrap font-sans leading-relaxed text-[#34473f]">
+                          {note.content}
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button
+                            className="min-h-10 border border-[#9ba9a0] px-3 font-sans text-sm font-bold hover:bg-[#edf1eb] disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={pendingNoteIds.has(note.id)}
+                            onClick={() => {
+                              setConfirmDeleteNoteId(null);
+                              setEditingNoteId(note.id);
+                            }}
+                            type="button"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="min-h-10 border border-[#a33f32] px-3 font-sans text-sm font-bold text-[#702d24] hover:bg-[#f4d8d1] disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={pendingNoteIds.has(note.id)}
+                            onClick={() => {
+                              setEditingNoteId(null);
+                              setConfirmDeleteNoteId(note.id);
+                            }}
+                            type="button"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                        {confirmDeleteNoteId === note.id ? (
+                          <div className="mt-4 border-l-4 border-[#a33f32] bg-[#f4d8d1] p-4" role="group" aria-label={`Confirm deletion of ${note.title}`}>
+                            <p className="m-0 font-sans text-sm">Delete this note permanently?</p>
+                            <div className="mt-3 flex gap-2">
+                              <button
+                                className="min-h-10 bg-[#702d24] px-3 font-sans text-sm font-bold text-white hover:bg-[#57231c] disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={pendingNoteIds.has(note.id)}
+                                onClick={() => void handleDelete(note.id)}
+                                type="button"
+                              >
+                                {pendingNoteIds.has(note.id) ? 'Deleting...' : 'Confirm delete'}
+                              </button>
+                              <button
+                                className="min-h-10 border border-[#9ba9a0] px-3 font-sans text-sm font-bold hover:bg-white"
+                                onClick={() => setConfirmDeleteNoteId(null)}
+                                type="button"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </>
+                    )}
                   </article>
                 </li>
               ))}
@@ -79,10 +169,10 @@ export function NotesApp() {
             New note
           </h2>
           <p className="mt-2 font-sans text-sm leading-relaxed text-[#40564b]">
-            Notes are stored in memory during this MVP.
+            Notes are saved to your PostgreSQL database.
           </p>
           <div className="mt-6">
-            <NoteForm isSubmitting={isCreating} onCreate={create} />
+            <NoteForm isSubmitting={isCreating} onSave={create} />
           </div>
         </aside>
       </div>
