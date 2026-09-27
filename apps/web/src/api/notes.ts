@@ -1,20 +1,9 @@
+import { noteSchema, type Note } from '@sage/contracts';
 import { z } from 'zod';
 
-export type Note = {
-  id: string;
-  title: string;
-  content: string;
-  createdAt: string;
-};
+export type { Note } from '@sage/contracts';
 
 export type CreateNoteInput = Pick<Note, 'title' | 'content'>;
-
-const noteSchema = z.object({
-  id: z.string().uuid(),
-  title: z.string(),
-  content: z.string(),
-  createdAt: z.string().datetime(),
-}).strict();
 
 const notesResponseSchema = z.object({ notes: z.array(noteSchema) }).strict();
 const noteResponseSchema = z.object({ note: noteSchema }).strict();

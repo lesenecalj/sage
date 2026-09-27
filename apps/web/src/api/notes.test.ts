@@ -6,6 +6,7 @@ const note = {
   id: '7d5b9456-eb94-414f-a129-da4aa1bb2c45',
   title: 'Architecture',
   content: 'Keep it simple.',
+  sourceUrl: null,
   createdAt: '2026-09-24T12:00:00.000Z',
 };
 
@@ -18,6 +19,23 @@ describe('Notes API client', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ notes: [note] })));
 
     await expect(listNotes()).resolves.toEqual([note]);
+  });
+
+  it('accepts notes with a source URL or an explicitly empty source', async () => {
+    const sourced = { ...note, sourceUrl: 'https://react.dev/learn' };
+    const manual = { ...note, sourceUrl: null };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ notes: [sourced, manual] })));
+
+    await expect(listNotes()).resolves.toEqual([sourced, manual]);
+  });
+
+  it('rejects a response without the required source URL field', async () => {
+    const { sourceUrl: _sourceUrl, ...incompleteNote } = note;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ notes: [incompleteNote] })));
+
+    await expect(listNotes()).rejects.toEqual(
+      new ApiError('The API returned an invalid response.', 200),
+    );
   });
 
   it('rejects an invalid success response', async () => {
