@@ -15,9 +15,12 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "@sage/contracts": "0.1.0",
+    "cheerio": "^1.2.0",
     "cors": "^2.8.5",
     "dotenv": "^18.0.3",
     "express": "^5.1.0",
+    "openai": "^7.23.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
