@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { NoteForm } from './NoteForm';
+import { UrlNoteForm } from './UrlNoteForm';
 import { useNotes } from '../hooks/useNotes';
 
 function formatCreatedAt(value: string): string {
@@ -14,6 +15,7 @@ export function NotesApp() {
   const { notes, isLoading, isCreating, pendingNoteIds, errorMessage, create, update, remove } = useNotes();
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState<string | null>(null);
+  const [creationMode, setCreationMode] = useState<'manual' | 'url'>('manual');
 
   async function handleUpdate(noteId: string, input: { title: string; content: string }) {
     const didUpdate = await update(noteId, input);
@@ -168,11 +170,50 @@ export function NotesApp() {
           <h2 className="m-0 text-2xl font-normal" id="create-note-heading">
             New note
           </h2>
-          <p className="mt-2 font-sans text-sm leading-relaxed text-[#40564b]">
-            Notes are saved to your PostgreSQL database.
-          </p>
-          <div className="mt-6">
+          <div
+            className="mt-5 flex border-b border-[#9ba9a0]"
+            role="tablist"
+            aria-label="Note creation method"
+            onKeyDown={(event) => {
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+              event.preventDefault();
+              const nextMode = creationMode === 'manual' ? 'url' : 'manual';
+              setCreationMode(nextMode);
+              event.currentTarget.querySelector<HTMLButtonElement>(`#${nextMode}-note-tab`)?.focus();
+            }}
+          >
+            <button
+              aria-controls="manual-note-panel"
+              aria-selected={creationMode === 'manual'}
+              className="min-h-11 flex-1 border-b-2 px-2 font-sans text-sm font-bold focus-visible:outline-2 focus-visible:outline-[#20302b] data-[selected=true]:border-[#20302b] data-[selected=false]:border-transparent"
+              data-selected={creationMode === 'manual'}
+              id="manual-note-tab"
+              onClick={() => setCreationMode('manual')}
+              role="tab"
+              tabIndex={creationMode === 'manual' ? 0 : -1}
+              type="button"
+            >
+              Manual
+            </button>
+            <button
+              aria-controls="url-note-panel"
+              aria-selected={creationMode === 'url'}
+              className="min-h-11 flex-1 border-b-2 px-2 font-sans text-sm font-bold focus-visible:outline-2 focus-visible:outline-[#20302b] data-[selected=true]:border-[#20302b] data-[selected=false]:border-transparent"
+              data-selected={creationMode === 'url'}
+              id="url-note-tab"
+              onClick={() => setCreationMode('url')}
+              role="tab"
+              tabIndex={creationMode === 'url' ? 0 : -1}
+              type="button"
+            >
+              From URL
+            </button>
+          </div>
+          <div className="mt-6" id="manual-note-panel" role="tabpanel" aria-labelledby="manual-note-tab" hidden={creationMode !== 'manual'}>
             <NoteForm isSubmitting={isCreating} onSave={create} />
+          </div>
+          <div className="mt-6" id="url-note-panel" role="tabpanel" aria-labelledby="url-note-tab" hidden={creationMode !== 'url'}>
+            <UrlNoteForm />
           </div>
         </aside>
       </div>

@@ -43,6 +43,33 @@ describe('NotesApp', () => {
     expect(screen.getByText('No notes yet. Add your first one from the form.')).toBeInTheDocument();
   });
 
+  it('switches between manual and URL creation without offering an unavailable submit', async () => {
+    const user = userEvent.setup();
+    const create = vi.fn();
+    useNotes.mockReturnValue({
+      notes: [], isLoading: false, isCreating: false,
+      pendingNoteIds: new Set(), errorMessage: null,
+      create, update: vi.fn(), remove: vi.fn(),
+    });
+
+    render(<NotesApp />);
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'manual-note-tab');
+    expect(screen.getByLabelText('Title')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Title'), 'Draft note');
+
+    await user.click(screen.getByRole('tab', { name: 'From URL' }));
+    expect(screen.getByRole('tab', { name: 'From URL' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('Page URL')).toBeInTheDocument();
+    expect(screen.getByLabelText('Instruction')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Title' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Generate note' })).toBeDisabled();
+    expect(create).not.toHaveBeenCalled();
+
+    await user.keyboard('{ArrowLeft}');
+    expect(screen.getByRole('tab', { name: 'Manual' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('Title')).toHaveValue('Draft note');
+  });
+
   it('shows notes and an API error', () => {
     useNotes.mockReturnValue({
       notes: [
