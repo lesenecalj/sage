@@ -1,16 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { Prisma, type PrismaClient } from '@prisma/client';
+import { Prisma, type Note as PrismaNote, type PrismaClient } from '@prisma/client';
+import type { Note } from '@sage/contracts';
 
-export type Note = {
-  id: string;
-  title: string;
-  content: string;
-  createdAt: string;
-};
+export type { Note } from '@sage/contracts';
 
-export type CreateNoteInput = Pick<Note, 'title' | 'content'>;
-export type UpdateNoteInput = CreateNoteInput;
+export type CreateNoteInput = Pick<Note, 'title' | 'content'> & { sourceUrl?: string | null };
+export type UpdateNoteInput = Pick<Note, 'title' | 'content'>;
 
 export type NotesRepository = {
   create(input: CreateNoteInput): Promise<Note>;
@@ -23,11 +19,12 @@ export function createInMemoryNotesRepository(): NotesRepository {
   const notes: Note[] = [];
 
   return {
-    async create({ title, content }) {
+    async create({ title, content, sourceUrl }) {
       const note: Note = {
         id: randomUUID(),
         title,
         content,
+        sourceUrl: sourceUrl ?? null,
         createdAt: new Date().toISOString(),
       };
 
@@ -67,16 +64,12 @@ export function createInMemoryNotesRepository(): NotesRepository {
   };
 }
 
-function toNote(note: {
-  id: string;
-  title: string;
-  content: string;
-  createdAt: Date;
-}): Note {
+function toNote(note: PrismaNote): Note {
   return {
     id: note.id,
     title: note.title,
     content: note.content,
+    sourceUrl: note.sourceUrl,
     createdAt: note.createdAt.toISOString(),
   };
 }

@@ -25,6 +25,7 @@ The Vite development server proxies requests from `/api/*` to the API. Confirm t
 
 - `apps/web`: React 19, TypeScript, Vite, and Tailwind CSS 4.
 - `apps/api`: Express 5, TypeScript, Prisma, PostgreSQL, and a native Node.js ESM build.
+- `packages/contracts`: shared Zod response schemas and inferred types used by the API and web app.
 - `apps/api/tsconfig.build.json`: production build configuration; test files are excluded from `dist`.
 
 ## Commands
