@@ -17,6 +17,7 @@ describe('NotesApp', () => {
         pendingNoteIds: new Set(),
       errorMessage: null,
       create: vi.fn(),
+      generateFromUrl: vi.fn(),
       update: vi.fn(),
       remove: vi.fn(),
     });
@@ -34,6 +35,7 @@ describe('NotesApp', () => {
         pendingNoteIds: new Set(),
       errorMessage: null,
       create: vi.fn(),
+      generateFromUrl: vi.fn(),
       update: vi.fn(),
       remove: vi.fn(),
     });
@@ -41,6 +43,43 @@ describe('NotesApp', () => {
     render(<NotesApp />);
 
     expect(screen.getByText('No notes yet. Add your first one from the form.')).toBeInTheDocument();
+  });
+
+  it('switches creation modes and submits URL generation', async () => {
+    const user = userEvent.setup();
+    const create = vi.fn();
+    const generateFromUrl = vi.fn().mockResolvedValue(true);
+    useNotes.mockReturnValue({
+      notes: [], isLoading: false, isCreating: false,
+      pendingNoteIds: new Set(), errorMessage: null,
+      create, generateFromUrl, update: vi.fn(), remove: vi.fn(),
+    });
+
+    render(<NotesApp />);
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'manual-note-tab');
+    expect(screen.getByLabelText('Title')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Title'), 'Draft note');
+
+    await user.click(screen.getByRole('tab', { name: 'From URL' }));
+    expect(screen.getByRole('tab', { name: 'From URL' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('Page URL')).toBeInTheDocument();
+    expect(screen.getByLabelText('Instruction')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Title' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Generate note' })).toBeEnabled();
+    expect(create).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText('Page URL'), 'https://react.dev/learn');
+    await user.type(screen.getByLabelText('Instruction'), 'Summarize React practices');
+    await user.click(screen.getByRole('button', { name: 'Generate note' }));
+    expect(generateFromUrl).toHaveBeenCalledWith({
+      url: 'https://react.dev/learn',
+      instruction: 'Summarize React practices',
+    });
+
+    await user.click(screen.getByRole('tab', { name: 'From URL' }));
+    await user.keyboard('{ArrowLeft}');
+    expect(screen.getByRole('tab', { name: 'Manual' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('Title')).toHaveValue('Draft note');
   });
 
   it('shows notes and an API error', () => {
@@ -58,6 +97,7 @@ describe('NotesApp', () => {
         pendingNoteIds: new Set(),
       errorMessage: 'Unable to save note.',
       create: vi.fn(),
+      generateFromUrl: vi.fn(),
       update: vi.fn(),
       remove: vi.fn(),
     });
@@ -85,6 +125,7 @@ describe('NotesApp', () => {
         pendingNoteIds: new Set(),
       errorMessage: null,
       create: vi.fn(),
+      generateFromUrl: vi.fn(),
       update,
       remove: vi.fn(),
     });
@@ -121,6 +162,7 @@ describe('NotesApp', () => {
         pendingNoteIds: new Set(),
       errorMessage: null,
       create: vi.fn(),
+      generateFromUrl: vi.fn(),
       update: vi.fn(),
       remove,
     });

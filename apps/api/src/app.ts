@@ -1,9 +1,8 @@
 import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
 
-import type { NotesRepository } from './notes/notes.repository.js';
 import { createNotesRouter } from './notes/notes.router.js';
-import { createNotesService } from './notes/notes.service.js';
+import type { NotesService } from './notes/notes.service.js';
 
 function isInvalidJsonBody(error: unknown): boolean {
   return (
@@ -15,12 +14,11 @@ function isInvalidJsonBody(error: unknown): boolean {
 }
 
 type AppDependencies = {
-  notesRepository: NotesRepository;
+  notesService: NotesService;
 };
 
-export function createApp({ notesRepository }: AppDependencies) {
+export function createApp({ notesService }: AppDependencies) {
   const app = express();
-  const notesService = createNotesService(notesRepository);
 
   app.use(cors({ origin: process.env.WEB_ORIGIN ?? 'http://localhost:5173' }));
   app.use(express.json({ limit: '1mb', strict: false }));

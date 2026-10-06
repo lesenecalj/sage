@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError, createNote, deleteNote, listNotes, updateNote } from './notes';
+import { ApiError, createNote, deleteNote, generateNoteFromUrl, listNotes, updateNote } from './notes';
 
 const note = {
   id: '7d5b9456-eb94-414f-a129-da4aa1bb2c45',
@@ -55,6 +55,18 @@ describe('Notes API client', () => {
     await expect(createNote({ title: 'Architecture', content: 'Keep it simple.' })).rejects.toEqual(
       new ApiError('Invalid note input', 400),
     );
+  });
+
+  it('generates a note from a URL', async () => {
+    const input = { url: 'https://react.dev/learn', instruction: 'Summarize React practices' };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ note })));
+
+    await expect(generateNoteFromUrl(input)).resolves.toEqual(note);
+    expect(fetch).toHaveBeenCalledWith('/api/notes/from-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
   });
 
   it('updates an existing note', async () => {

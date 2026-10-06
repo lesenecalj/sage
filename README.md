@@ -6,16 +6,26 @@ Software Assistant for Guided Engineering: a personal AI learning assistant buil
 
 - Node.js 22 or later
 - npm 10 or later
+- Docker Desktop with Docker Compose
 
 ## Getting started
 
 ```bash
 npm install
-cp apps/api/.env.example apps/api/.env
-docker compose up -d postgres
-npm run db:migrate --workspace @sage/api
 npm run dev
 ```
+
+`npm start` is an alias for `npm run dev`. On first start, the bootstrap creates
+`apps/api/.env` without overwriting an existing file, starts PostgreSQL and
+Ollama with Docker Compose, ensures the configured Ollama model is available,
+generates Prisma Client, applies committed migrations, and starts the API and
+frontend watchers. Docker keeps database and model data in persistent volumes.
+The initial image and model downloads can take a while.
+
+Ollama currently runs in a container and may use CPU inference on macOS, which
+is slower than the native Ollama app. Set `OLLAMA_MODEL` in `apps/api/.env` to
+select another model. The URL form sends requests to the API, which fetches the
+page, generates a summary with Ollama, and saves it as a note.
 
 The frontend is available at `http://localhost:5173`; the API runs at `http://localhost:3000`.
 `npm run dev` rebuilds `packages/contracts` when its source changes; the API restarts and Vite serves the updated contract without a manual build.

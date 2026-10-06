@@ -9,6 +9,17 @@ export function createNotesRouter(notesService: NotesService) {
     response.status(200).json({ notes: await notesService.list() });
   });
 
+  router.post('/from-url', async (request, response) => {
+    const result = await notesService.generateFromUrl(request.body);
+
+    if (!result.success) {
+      response.status(400).json({ error: 'invalid URL note input' });
+      return;
+    }
+
+    response.status(201).json({ note: result.note });
+  });
+
   router.post('/', async (request, response) => {
     const result = await notesService.create(request.body);
 

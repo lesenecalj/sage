@@ -3,11 +3,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from './app.js';
 import { createInMemoryNotesRepository } from './notes/notes.repository.js';
+import { createNotesService } from './notes/notes.service.js';
 
 let app: ReturnType<typeof createApp>;
 
 beforeEach(() => {
-  app = createApp({ notesRepository: createInMemoryNotesRepository() });
+  app = createApp({
+    notesService: createNotesService(createInMemoryNotesRepository(), { summarize: async () => '' }),
+  });
 });
 
 describe('GET /health', () => {
@@ -20,6 +23,42 @@ describe('GET /health', () => {
 });
 
 describe('notes routes', () => {
+  it('generates and saves a note from a URL', async () => {
+    const notesRepository = createInMemoryNotesRepository();
+    const notesService = createNotesService(notesRepository, {
+      readPage: async (url) => ({ title: 'Example page', text: 'Page text', url }),
+      summarize: async () => 'Generated summary',
+    });
+    const app = createApp({ notesService });
+
+    const response = await request(app).post('/notes/from-url').send({
+      url: 'https://example.com/article',
+      instruction: 'Summarize the key ideas.',
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.note).toMatchObject({
+      title: 'Example page',
+      content: 'Generated summary',
+      sourceUrl: 'https://example.com/article',
+    });
+    await expect(request(app).get('/notes')).resolves.toMatchObject({
+      status: 200,
+      body: { notes: [response.body.note] },
+    });
+  });
+
+  it.each([
+    { url: 'file:///etc/passwd', instruction: 'Summarize this.' },
+    { url: 'https://example.com', instruction: '   ' },
+    { url: 'https://example.com', instruction: 'Summarize this.', extra: true },
+  ])('rejects invalid URL note input: %j', async (input) => {
+    const response = await request(app).post('/notes/from-url').send(input);
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: 'invalid URL note input' });
+  });
+
   it('creates a note and lists it', async () => {
     const createResponse = await request(app).post('/notes').send({
       title: 'Express conventions',

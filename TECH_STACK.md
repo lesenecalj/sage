@@ -8,7 +8,7 @@
 - Persistence: PostgreSQL 16 with Prisma migrations, managed locally with Docker Compose
 - Testing: Vitest, Supertest, React Testing Library, and jsdom
 
-OpenAI, Redis, and background workers are planned technologies. They are not yet installed or configured.
+Ollama powers URL-based note generation through the API; Redis and background workers remain planned technologies.
 
 ## Frontend
 
@@ -32,11 +32,11 @@ OpenAI, Redis, and background workers are planned technologies. They are not yet
 
 ## AI
 
-- OpenAI API
+- Ollama with a locally installed Llama model
 
 ## Embeddings
 
-- OpenAI Embeddings
+- Embedding provider to be selected when retrieval is implemented
 
 ## Cache
 
