@@ -4,14 +4,19 @@ import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 import { config } from 'dotenv';
 
+import { summarizeWithOllama } from './ai/ollama-note-summarizer.js';
 import { createApp } from './app.js';
 import { createPrismaNotesRepository } from './notes/notes.repository.js';
+import { createNotesService } from './notes/notes.service.js';
 
 config({ path: fileURLToPath(new URL('../.env', import.meta.url)) });
 
 const port = Number(process.env.PORT ?? 3000);
 const prisma = new PrismaClient();
-const app = createApp({ notesRepository: createPrismaNotesRepository(prisma) });
+const notesService = createNotesService(createPrismaNotesRepository(prisma), {
+	summarize: summarizeWithOllama,
+});
+const app = createApp({ notesService });
 let isShuttingDown = false;
 
 function listen(): Promise<Server> {
