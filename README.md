@@ -18,6 +18,7 @@ npm run dev
 ```
 
 The frontend is available at `http://localhost:5173`; the API runs at `http://localhost:3000`.
+`npm run dev` rebuilds `packages/contracts` when its source changes; the API restarts and Vite serves the updated contract without a manual build.
 
 The Vite development server proxies requests from `/api/*` to the API. Confirm the application is running with `http://localhost:5173/api/health`, which returns `{ "status": "ok" }`. If port `5173` is already in use, Vite selects the next available port and displays it in the terminal.
 
