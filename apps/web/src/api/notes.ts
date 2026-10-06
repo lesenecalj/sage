@@ -4,6 +4,7 @@ import { z } from 'zod';
 export type { Note } from '@sage/contracts';
 
 export type CreateNoteInput = Pick<Note, 'title' | 'content'>;
+export type GenerateNoteInput = { url: string; instruction: string };
 
 const notesResponseSchema = z.object({ notes: z.array(noteSchema) }).strict();
 const noteResponseSchema = z.object({ note: noteSchema }).strict();
@@ -50,6 +51,21 @@ export async function listNotes(signal?: AbortSignal): Promise<Note[]> {
 
 export async function createNote(input: CreateNoteInput): Promise<Note> {
   const response = await fetch('/api/notes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    return throwApiError(response);
+  }
+
+  const body = await parseResponse(response, noteResponseSchema);
+  return body.note;
+}
+
+export async function generateNoteFromUrl(input: GenerateNoteInput): Promise<Note> {
+  const response = await fetch('/api/notes/from-url', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

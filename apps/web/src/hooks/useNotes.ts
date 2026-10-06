@@ -4,8 +4,10 @@ import {
   ApiError,
   createNote,
   deleteNote,
+  generateNoteFromUrl,
   listNotes,
   type CreateNoteInput,
+  type GenerateNoteInput,
   type Note,
   updateNote,
 } from '../api/notes';
@@ -65,6 +67,22 @@ export function useNotes() {
     }
   }
 
+  async function generateFromUrl(input: GenerateNoteInput): Promise<boolean> {
+    setIsCreating(true);
+    setErrorMessage(null);
+
+    try {
+      const note = await generateNoteFromUrl(input);
+      setNotes((currentNotes) => [...currentNotes, note]);
+      return true;
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+      return false;
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
   async function runNoteMutation<T>(
     id: string,
     operation: () => Promise<T>,
@@ -110,5 +128,15 @@ export function useNotes() {
     return true;
   }
 
-  return { notes, isLoading, isCreating, pendingNoteIds, errorMessage, create, update, remove };
+  return {
+    notes,
+    isLoading,
+    isCreating,
+    pendingNoteIds,
+    errorMessage,
+    create,
+    generateFromUrl,
+    update,
+    remove,
+  };
 }

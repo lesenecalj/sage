@@ -55,10 +55,4 @@ describe('UrlNoteForm', () => {
     expect(await screen.findByRole('button', { name: 'Generate note' })).toBeEnabled();
   });
 
-  it('does not allow generation without an endpoint', () => {
-    render(<UrlNoteForm />);
-
-    expect(screen.getByRole('button', { name: 'Generate note' })).toBeDisabled();
-    expect(screen.getByRole('status')).toHaveTextContent('Generation is not available yet.');
-  });
 });

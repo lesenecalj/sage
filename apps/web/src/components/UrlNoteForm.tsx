@@ -12,7 +12,7 @@ type UrlNoteInput = z.output<typeof urlNoteSchema>;
 
 type UrlNoteFormProps = {
   isSubmitting?: boolean;
-  onGenerate?(input: UrlNoteInput): Promise<boolean>;
+  onGenerate(input: UrlNoteInput): Promise<boolean>;
 };
 
 export function UrlNoteForm({ isSubmitting = false, onGenerate }: UrlNoteFormProps) {
@@ -28,7 +28,7 @@ export function UrlNoteForm({ isSubmitting = false, onGenerate }: UrlNoteFormPro
   });
 
   async function submit(input: UrlNoteInput) {
-    if (onGenerate && await onGenerate(input)) reset();
+    if (await onGenerate(input)) reset();
   }
 
   return (
@@ -70,12 +70,11 @@ export function UrlNoteForm({ isSubmitting = false, onGenerate }: UrlNoteFormPro
 
       <button
         className="min-h-11 bg-[#20302b] px-4 font-sans text-sm font-bold text-white transition hover:bg-[#395247] disabled:cursor-not-allowed disabled:bg-[#87938d]"
-        disabled={isSubmitting || isFormSubmitting || !onGenerate}
+        disabled={isSubmitting || isFormSubmitting}
         type="submit"
       >
         {isSubmitting || isFormSubmitting ? 'Generating note...' : 'Generate note'}
       </button>
-      {!onGenerate ? <p className="m-0 font-sans text-sm text-[#40564b]" role="status">Generation is not available yet.</p> : null}
     </form>
   );
 }

@@ -12,7 +12,17 @@ function formatCreatedAt(value: string): string {
 }
 
 export function NotesApp() {
-  const { notes, isLoading, isCreating, pendingNoteIds, errorMessage, create, update, remove } = useNotes();
+  const {
+    notes,
+    isLoading,
+    isCreating,
+    pendingNoteIds,
+    errorMessage,
+    create,
+    generateFromUrl,
+    update,
+    remove,
+  } = useNotes();
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState<string | null>(null);
   const [creationMode, setCreationMode] = useState<'manual' | 'url'>('manual');
@@ -213,7 +223,7 @@ export function NotesApp() {
             <NoteForm isSubmitting={isCreating} onSave={create} />
           </div>
           <div className="mt-6" id="url-note-panel" role="tabpanel" aria-labelledby="url-note-tab" hidden={creationMode !== 'url'}>
-            <UrlNoteForm />
+            <UrlNoteForm isSubmitting={isCreating} onGenerate={generateFromUrl} />
           </div>
         </aside>
       </div>
