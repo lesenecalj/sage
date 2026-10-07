@@ -1,6 +1,8 @@
 import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
 
+import type { NoteGenerationJobs } from './notes/note-generation-jobs.port.js';
+import { createNoteGenerationRouter } from './notes/note-generation.router.js';
 import { createNotesRouter } from './notes/notes.router.js';
 import type { NotesService } from './notes/notes.service.js';
 
@@ -15,9 +17,10 @@ function isInvalidJsonBody(error: unknown): boolean {
 
 type AppDependencies = {
   notesService: NotesService;
+  noteGenerationJobs: NoteGenerationJobs;
 };
 
-export function createApp({ notesService }: AppDependencies) {
+export function createApp({ notesService, noteGenerationJobs }: AppDependencies) {
   const app = express();
 
   app.use(cors({ origin: process.env.WEB_ORIGIN ?? 'http://localhost:5173' }));
@@ -28,6 +31,7 @@ export function createApp({ notesService }: AppDependencies) {
   });
 
   app.use('/notes', createNotesRouter(notesService));
+  app.use('/note-generations', createNoteGenerationRouter(noteGenerationJobs));
 
   const errorHandler: ErrorRequestHandler = (error, _request, response, next) => {
     if (isInvalidJsonBody(error)) {

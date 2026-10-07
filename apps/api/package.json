@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --include '../../packages/contracts/dist/**/*' src/server.ts",
+    "dev:worker": "tsx watch src/workers/note-generation.worker.ts",
     "build": "node --eval \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc --project tsconfig.build.json",
     "start": "node dist/server.js",
+    "start:worker": "node dist/workers/note-generation.worker.js",
     "lint": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
@@ -17,6 +19,7 @@
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "@sage/contracts": "0.1.0",
+    "bullmq": "^6.3.11",
     "cheerio": "^1.2.0",
     "cors": "^2.8.5",
     "dotenv": "^18.0.3",
