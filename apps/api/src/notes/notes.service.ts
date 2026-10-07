@@ -1,15 +1,27 @@
+import { randomUUID } from 'node:crypto';
+
 import { z } from 'zod';
 
-import { fromUrlInputSchema, type FromUrlInput } from './from-url.input.js';
+import { fromUrlInputSchema } from './from-url.input.js';
 import type { Note, NotesRepository, UpdateNoteInput } from './notes.repository.js';
 import { readWebPage, type WebPage } from './web-page.js';
 
+export type NoteGenerationStage = 'reading_page' | 'summarizing' | 'saving_note';
+export type ReportNoteGenerationStage = (stage: NoteGenerationStage) => Promise<void>;
 export type NoteSummarizer = (page: WebPage, instruction: string) => Promise<string>;
 
-export type NotesServiceOptions = {
+export type NoteGenerationOptions = {
   readPage?: (url: string) => Promise<WebPage>;
   summarize: NoteSummarizer;
 };
+
+export type GenerationJobContext = {
+  id: string;
+  input: unknown;
+  reportProgress: ReportNoteGenerationStage;
+};
+
+export type NoteGenerationHandler = (job: GenerationJobContext) => Promise<Note>;
 
 const createNoteSchema = z.object({
   title: z.string().trim().min(1),
@@ -36,6 +48,7 @@ type GenerateFromUrlResult =
 export type NotesService = {
   create(input: unknown): Promise<CreateNoteResult>;
   generateFromUrl(input: unknown): Promise<GenerateFromUrlResult>;
+  processGenerationJob: NoteGenerationHandler;
   list(): Promise<Note[]>;
   update(id: unknown, input: unknown): Promise<UpdateNoteResult>;
   delete(id: unknown): Promise<DeleteNoteResult>;
@@ -43,8 +56,27 @@ export type NotesService = {
 
 export function createNotesService(
   repository: NotesRepository,
-  { readPage = readWebPage, summarize }: NotesServiceOptions,
+  { readPage = readWebPage, summarize }: NoteGenerationOptions,
 ): NotesService {
+  const processGenerationJob: NoteGenerationHandler = async ({ id, input, reportProgress }) => {
+    const result = fromUrlInputSchema.safeParse(input);
+    if (!result.success) throw new Error('Invalid note generation job input.');
+
+    await reportProgress('reading_page');
+    const page = await readPage(result.data.url);
+
+    await reportProgress('summarizing');
+    const content = (await summarize(page, result.data.instruction)).trim();
+    if (!content) throw new Error('The model returned an empty summary.');
+
+    await reportProgress('saving_note');
+    return repository.createGenerated(id, {
+      title: page.title,
+      content,
+      sourceUrl: page.url,
+    });
+  };
+
   return {
     async create(input) {
       const result = createNoteSchema.safeParse(input);
@@ -61,13 +93,14 @@ export function createNotesService(
       if (!result.success) {
         return { success: false, error: 'INVALID_INPUT' };
       }
-      const page = await readPage(result.data.url);
-      const content = (await summarize(page, result.data.instruction)).trim();
-      if (!content) throw new Error('The model returned an empty summary.');
-
-      const note = await repository.create({ title: page.title, content, sourceUrl: page.url });
+      const note = await processGenerationJob({
+        id: randomUUID(),
+        input: result.data,
+        reportProgress: async () => {},
+      });
       return { success: true, note };
     },
+    processGenerationJob,
     async list() {
       return repository.list();
     },
