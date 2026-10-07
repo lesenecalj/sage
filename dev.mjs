@@ -39,7 +39,7 @@ try {
   }
   config({ path: envFile });
 
-  run('docker', ['compose', 'up', '--detach', '--wait', 'postgres', 'ollama']);
+  run('docker', ['compose', 'up', '--detach', '--wait', 'postgres', 'ollama', 'redis']);
   ensureOllamaModel(process.env.OLLAMA_MODEL ?? 'llama3.2');
   run(npm, ['run', 'db:generate', '--workspace', '@sage/api']);
   run(npm, ['run', 'db:deploy', '--workspace', '@sage/api']);
