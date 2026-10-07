@@ -7,6 +7,7 @@ import {
   type NoteGenerationJobStatus,
 } from '@sage/contracts';
 import { fromUrlInputSchema, type FromUrlInput } from '../notes/from-url.input.js';
+import type { NoteGenerationJobs, SubmitNoteGenerationResult } from '../notes/note-generation-jobs.port.js';
 import {
   createNoteGenerationQueue,
   noteGenerationQueueName,
@@ -15,17 +16,6 @@ import {
 } from './note-generation.queue.js';
 
 type GenerationQueue = Queue<FromUrlInput, NoteGenerationJobResult, string>;
-
-type SubmitResult =
-  | { success: true; job: NoteGenerationJob }
-  | { success: false; error: 'INVALID_INPUT' };
-
-export type NoteGenerationJobs = {
-  submit(input: unknown): Promise<SubmitResult>;
-  get(id: string): Promise<NoteGenerationJob | null>;
-  list(): Promise<NoteGenerationJob[]>;
-  subscribe(id: string, listener: () => void): () => void;
-};
 
 function statusFor(state: string): NoteGenerationJobStatus {
   if (state === 'active') return 'running';
@@ -64,7 +54,7 @@ async function toSnapshot(job: Job<FromUrlInput, NoteGenerationJobResult, string
 }
 
 export function createNoteGenerationJobs(queue: GenerationQueue, events: QueueEvents): NoteGenerationJobs {
-  async function get(id: string): Promise<NoteGenerationJob | null> {
+  async function get(id: string) {
     const job = await queue.getJob(id);
     return job ? toSnapshot(job) : null;
   }
@@ -91,7 +81,13 @@ export function createNoteGenerationJobs(queue: GenerationQueue, events: QueueEv
   }
 
   return {
-    async submit(input) {
+    async waitUntilReady() {
+      await Promise.all([queue.waitUntilReady(), events.waitUntilReady()]);
+    },
+    async close() {
+      await Promise.all([queue.close(), events.close()]);
+    },
+    async submit(input): Promise<SubmitNoteGenerationResult> {
       const result = fromUrlInputSchema.safeParse(input);
       if (!result.success) return { success: false, error: 'INVALID_INPUT' };
 
