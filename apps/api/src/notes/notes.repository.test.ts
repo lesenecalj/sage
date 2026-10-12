@@ -1,25 +1,38 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { createInMemoryNotesRepository } from './notes.repository.js';
+import { createPrismaNotesRepository } from './notes.repository.js';
 
-describe('notes source URL', () => {
-  it('leaves manual notes without a source', async () => {
-    const repository = createInMemoryNotesRepository();
-    const note = await repository.create({ title: 'Manual', content: 'My own notes' });
+describe('Prisma notes repository', () => {
+  it('requests newest notes first with a stable ID tie-breaker', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const repository = createPrismaNotesRepository({ note: { findMany } } as never);
 
-    expect(note.sourceUrl).toBeNull();
-    await expect(repository.list()).resolves.toEqual([note]);
+    await repository.list();
+
+    expect(findMany).toHaveBeenCalledExactlyOnceWith({
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
   });
 
-  it('preserves a source URL when editing a generated note', async () => {
-    const repository = createInMemoryNotesRepository();
-    const note = await repository.create({
-      title: 'React', content: 'Use hooks.', sourceUrl: 'https://react.dev/learn',
-    });
+  it('uses an upsert with the job ID for idempotent generated-note writes', async () => {
+    const jobId = '7d5b9456-eb94-414f-a129-da4aa1bb2c45';
+    const input = { title: 'React', content: 'Use hooks.', sourceUrl: 'https://react.dev/learn' };
+    const record = {
+      ...input,
+      id: jobId,
+      createdAt: new Date('2026-09-27T12:00:00.000Z'),
+      updatedAt: new Date('2026-09-27T12:00:00.000Z'),
+    };
+    const upsert = vi.fn().mockResolvedValue(record);
+    const repository = createPrismaNotesRepository({ note: { upsert } } as never);
 
-    expect(note.sourceUrl).toBe('https://react.dev/learn');
-    const edited = await repository.update(note.id, { title: 'React notes', content: 'Use hooks.' });
-    expect(edited?.sourceUrl).toBe(note.sourceUrl);
-    await expect(repository.list()).resolves.toEqual([edited]);
+    const note = await repository.createGenerated(jobId, input);
+
+    expect(upsert).toHaveBeenCalledExactlyOnceWith({
+      where: { id: jobId },
+      update: {},
+      create: { ...input, id: jobId },
+    });
+    expect(note).toMatchObject({ id: jobId, title: input.title, sourceUrl: input.sourceUrl });
   });
 });

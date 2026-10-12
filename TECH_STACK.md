@@ -8,7 +8,7 @@
 - Persistence: PostgreSQL 16 with Prisma migrations, managed locally with Docker Compose
 - Testing: Vitest, Supertest, React Testing Library, and jsdom
 
-Ollama powers URL-based note generation through the API; Redis and background workers remain planned technologies.
+Ollama powers URL-based note generation. BullMQ stores generation jobs in Redis, and a separate Node.js worker processes them. The API exposes job snapshots and streams progress to the frontend over SSE.
 
 ## Frontend
 
@@ -32,7 +32,7 @@ Ollama powers URL-based note generation through the API; Redis and background wo
 
 ## AI
 
-- Ollama with a locally installed Llama model
+- Ollama in a Docker container with a configurable Llama model
 
 ## Embeddings
 
@@ -40,15 +40,13 @@ Ollama powers URL-based note generation through the API; Redis and background wo
 
 ## Cache
 
-- Redis
+- Redis is used by BullMQ for durable job storage; application caching is not implemented yet.
 
 ## Background Processing
 
-Initial:
-- In-process worker
-
-Future:
-- Dedicated worker process if needed
+- BullMQ queue backed by Redis
+- Separate worker process for URL note generation
+- Exponential retries and job progress reporting
 
 ## Testing
 
@@ -71,7 +69,7 @@ Future:
 - Zod schemas validate untrusted request bodies at runtime and reject unknown fields.
 - Tests cover both HTTP contracts with Supertest and service behavior in isolation with Vitest.
 
-The current Notes flow follows `route -> service -> repository`. Runtime composition injects the Prisma repository; tests inject the in-memory repository for isolation.
+The CRUD Notes flow follows `route -> service -> repository`. URL generation is submitted through the API to BullMQ; a separate worker invokes the notes service and Prisma repository. Runtime composition injects dependencies, while tests use in-memory or stubbed implementations.
 
 ## Guiding Principles
 

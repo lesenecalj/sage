@@ -1,7 +1,13 @@
-import { noteSchema, type Note } from '@sage/contracts';
+import {
+  noteGenerationJobResponseSchema,
+  noteGenerationJobsResponseSchema,
+  noteSchema,
+  type Note,
+  type NoteGenerationJob,
+} from '@sage/contracts';
 import { z } from 'zod';
 
-export type { Note } from '@sage/contracts';
+export type { Note, NoteGenerationJob } from '@sage/contracts';
 
 export type CreateNoteInput = Pick<Note, 'title' | 'content'>;
 export type GenerateNoteInput = { url: string; instruction: string };
@@ -9,6 +15,7 @@ export type GenerateNoteInput = { url: string; instruction: string };
 const notesResponseSchema = z.object({ notes: z.array(noteSchema) }).strict();
 const noteResponseSchema = z.object({ note: noteSchema }).strict();
 const errorResponseSchema = z.object({ error: z.string() }).strict();
+const trackingErrorSchema = z.object({ error: z.string(), retryable: z.boolean().optional() }).strict();
 
 export class ApiError extends Error {
   constructor(
@@ -64,8 +71,8 @@ export async function createNote(input: CreateNoteInput): Promise<Note> {
   return body.note;
 }
 
-export async function generateNoteFromUrl(input: GenerateNoteInput): Promise<Note> {
-  const response = await fetch('/api/notes/from-url', {
+export async function createNoteGeneration(input: GenerateNoteInput): Promise<NoteGenerationJob> {
+  const response = await fetch('/api/note-generations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -75,8 +82,62 @@ export async function generateNoteFromUrl(input: GenerateNoteInput): Promise<Not
     return throwApiError(response);
   }
 
-  const body = await parseResponse(response, noteResponseSchema);
-  return body.note;
+  const body = await parseResponse(response, noteGenerationJobResponseSchema);
+  return body.job;
+}
+
+export async function listNoteGenerations(signal?: AbortSignal): Promise<NoteGenerationJob[]> {
+  const response = await fetch('/api/note-generations', { signal });
+
+  if (!response.ok) return throwApiError(response);
+
+  const body = await parseResponse(response, noteGenerationJobsResponseSchema);
+  return body.jobs;
+}
+
+export function subscribeToNoteGenerationEvents(
+  id: string,
+  onJob: (job: NoteGenerationJob) => void,
+  onError: (error: Error, retryable: boolean) => void,
+): EventSource {
+  const events = new EventSource(`/api/note-generations/${id}/events`);
+
+  events.addEventListener('job', (event) => {
+    try {
+      const message = event as MessageEvent<string>;
+      const result = noteGenerationJobResponseSchema.safeParse(JSON.parse(message.data));
+      if (!result.success) throw new Error('The API returned an invalid generation update.');
+      onJob(result.data.job);
+      if (result.data.job.status === 'completed' || result.data.job.status === 'failed') {
+        events.close();
+      }
+    } catch (error) {
+      events.close();
+      onError(error instanceof Error ? error : new Error('Invalid generation update.'), false);
+    }
+  });
+
+  events.addEventListener('error', (event) => {
+    if (!(event instanceof MessageEvent)) {
+      if (events.readyState === EventSource.CLOSED) {
+        onError(new Error('Generation tracking disconnected. Reload to reconnect.'), false);
+      }
+      return;
+    }
+    try {
+      const result = trackingErrorSchema.safeParse(JSON.parse(event.data));
+      if (!result.success || result.data.retryable !== true) events.close();
+      onError(
+        new ApiError(result.success ? result.data.error : 'Generation tracking failed.', 500),
+        result.success && result.data.retryable === true,
+      );
+    } catch (error) {
+      events.close();
+      onError(new Error('The API returned an invalid tracking error.'), false);
+    }
+  });
+
+  return events;
 }
 
 export async function updateNote(id: string, input: CreateNoteInput): Promise<Note> {

@@ -1,8 +1,26 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { NoteForm } from './NoteForm';
 import { UrlNoteForm } from './UrlNoteForm';
 import { useNotes } from '../hooks/useNotes';
+import type { NoteGenerationJob } from '../api/notes';
+
+const generationStageLabels: Record<NoteGenerationJob['stage'], string> = {
+  queued: 'Waiting to start',
+  reading_page: 'Reading page',
+  summarizing: 'Summarizing page',
+  saving_note: 'Saving note',
+  completed: 'Completed',
+  failed: 'Failed',
+};
+
+const generationSteps = ['reading_page', 'summarizing', 'saving_note'] as const;
+
+function completedGenerationSteps(job: NoteGenerationJob) {
+  if (job.status === 'completed') return generationSteps;
+  const currentStep = generationSteps.findIndex((stage) => stage === job.stage);
+  return generationSteps.slice(0, Math.max(currentStep, 0));
+}
 
 function formatCreatedAt(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
@@ -14,8 +32,10 @@ function formatCreatedAt(value: string): string {
 export function NotesApp() {
   const {
     notes,
+    generationJobs,
     isLoading,
     isCreating,
+    isSubmittingGeneration,
     pendingNoteIds,
     errorMessage,
     create,
@@ -26,6 +46,20 @@ export function NotesApp() {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState<string | null>(null);
   const [creationMode, setCreationMode] = useState<'manual' | 'url'>('manual');
+  const [activityTime, setActivityTime] = useState(Date.now);
+  const visibleJobs = generationJobs.filter((job) => job.status !== 'completed' ||
+    !job.finishedAt || Date.parse(job.finishedAt) + 60_000 > Math.max(activityTime, Date.now()));
+
+  useEffect(() => {
+    const now = Date.now();
+    const expirations = generationJobs
+      .flatMap((job) => job.status === 'completed' && job.finishedAt
+        ? [Date.parse(job.finishedAt) + 60_000] : [])
+      .filter((expiration) => expiration > now);
+    if (!expirations.length) return;
+    const timer = setTimeout(() => setActivityTime(Date.now()), Math.min(...expirations) - now);
+    return () => clearTimeout(timer);
+  }, [generationJobs, activityTime]);
 
   async function handleUpdate(noteId: string, input: { title: string; content: string }) {
     const didUpdate = await update(noteId, input);
@@ -223,7 +257,28 @@ export function NotesApp() {
             <NoteForm isSubmitting={isCreating} onSave={create} />
           </div>
           <div className="mt-6" id="url-note-panel" role="tabpanel" aria-labelledby="url-note-tab" hidden={creationMode !== 'url'}>
-            <UrlNoteForm isSubmitting={isCreating} onGenerate={generateFromUrl} />
+            <UrlNoteForm isSubmitting={isSubmittingGeneration} onGenerate={generateFromUrl} />
+            {visibleJobs.length > 0 ? (
+              <section className="mt-5 border-t border-[#9ba9a0] pt-4" aria-labelledby="generation-heading">
+                <h3 className="m-0 text-base font-normal" id="generation-heading">Generation activity</h3>
+                <ul className="mb-0 mt-3 grid list-none gap-3 p-0 font-sans text-sm" aria-live="polite">
+                  {visibleJobs.map((job) => (
+                    <li className="grid min-w-0 gap-1" key={job.id}>
+                      <span>{generationStageLabels[job.stage]}</span>
+                      <ol className="m-0 list-none space-y-1 p-0 text-xs text-[#40564b]" aria-label="Completed steps">
+                        {completedGenerationSteps(job).map((stage) => (
+                          <li key={stage}>{generationStageLabels[stage]}: Done</li>
+                        ))}
+                      </ol>
+                      <time className="text-xs text-[#5b7166]" dateTime={job.createdAt}>
+                        {formatCreatedAt(job.createdAt)}
+                      </time>
+                      {job.error ? <span className="break-words text-[#702d24]">{job.error}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
           </div>
         </aside>
       </div>

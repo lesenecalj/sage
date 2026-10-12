@@ -49,7 +49,7 @@ describe('UrlNoteForm', () => {
     await user.type(screen.getByLabelText('Instruction'), 'Summarize React practices');
     await user.click(screen.getByRole('button', { name: 'Generate note' }));
 
-    expect(screen.getByRole('button', { name: 'Generating note...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Submitting...' })).toBeDisabled();
     expect(onGenerate).toHaveBeenCalledTimes(1);
     finishGeneration(false);
     expect(await screen.findByRole('button', { name: 'Generate note' })).toBeEnabled();

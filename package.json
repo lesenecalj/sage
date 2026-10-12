@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node dev.mjs",
     "dev": "node dev.mjs",
-    "dev:watch": "concurrently --kill-others-on-fail -n contracts,api,web -c yellow,blue,green \"npm run dev -w @sage/contracts\" \"npm run dev -w @sage/api\" \"npm run dev -w @sage/web\"",
+    "dev:watch": "concurrently --kill-others-on-fail -n contracts,api,worker,web -c yellow,blue,cyan,green \"npm run dev -w @sage/contracts\" \"npm run dev -w @sage/api\" \"npm run dev:worker -w @sage/api\" \"npm run dev -w @sage/web\"",
     "build": "npm run build --workspaces",
     "lint": "npm run build --workspace @sage/contracts && npm run lint --workspaces",
     "test": "npm run build --workspace @sage/contracts && npm run test --workspaces"
