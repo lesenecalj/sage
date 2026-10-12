@@ -7,7 +7,7 @@ import {
   deleteNote,
   listNotes,
   listNoteGenerations,
-  subscribeToNoteGeneration,
+  subscribeToNoteGenerationEvents,
   type CreateNoteInput,
   type GenerateNoteInput,
   type Note,
@@ -76,10 +76,10 @@ export function useNotes() {
     }
   }
 
-  function subscribeToJob(jobId: string) {
+  function ensureNoteGenerationTracking(jobId: string) {
     const signal = lifecycle.current?.signal;
     if (!signal || signal.aborted || eventSources.current.has(jobId)) return;
-    const events = subscribeToNoteGeneration(
+    const events = subscribeToNoteGenerationEvents(
       jobId,
       (job) => {
         if (!signal.aborted) handleNoteGenerationUpdate(job);
@@ -115,7 +115,7 @@ export function useNotes() {
           return [...jobsById.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
         });
         for (const job of loadedJobs) {
-          if (job.status === 'queued' || job.status === 'running') subscribeToJob(job.id);
+          if (job.status === 'queued' || job.status === 'running') ensureNoteGenerationTracking(job.id);
         }
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -167,7 +167,7 @@ export function useNotes() {
       const job = await createNoteGeneration(input);
       if (!signal || signal.aborted) return false;
       handleNoteGenerationUpdate(job);
-      if (job.status === 'queued' || job.status === 'running') subscribeToJob(job.id);
+      if (job.status === 'queued' || job.status === 'running') ensureNoteGenerationTracking(job.id);
       return true;
     } catch (error) {
       setErrorMessage(getErrorMessage(error));

@@ -95,7 +95,7 @@ export async function listNoteGenerations(signal?: AbortSignal): Promise<NoteGen
   return body.jobs;
 }
 
-export function subscribeToNoteGeneration(
+export function subscribeToNoteGenerationEvents(
   id: string,
   onJob: (job: NoteGenerationJob) => void,
   onError: (error: Error, retryable: boolean) => void,

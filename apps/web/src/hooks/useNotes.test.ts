@@ -37,7 +37,7 @@ describe('useNotes generation tracking', () => {
     vi.spyOn(notesApi, 'listNoteGenerations').mockImplementation(() => new Promise((resolve) => { resolveJobs = resolve; }));
     vi.spyOn(notesApi, 'createNote').mockResolvedValue(note);
     vi.spyOn(notesApi, 'createNoteGeneration').mockResolvedValue(activeJob);
-    const subscribe = vi.spyOn(notesApi, 'subscribeToNoteGeneration').mockReturnValue({ close: vi.fn() } as unknown as EventSource);
+    const subscribe = vi.spyOn(notesApi, 'subscribeToNoteGenerationEvents').mockReturnValue({ close: vi.fn() } as unknown as EventSource);
     const { result } = renderHook(() => useNotes());
     await waitFor(() => expect(list).toHaveBeenCalledOnce());
 
@@ -60,7 +60,7 @@ describe('useNotes generation tracking', () => {
     vi.spyOn(notesApi, 'listNotes').mockResolvedValue([]);
     vi.spyOn(notesApi, 'listNoteGenerations').mockResolvedValue([activeJob]);
     vi.spyOn(notesApi, 'createNoteGeneration').mockResolvedValue(activeJob);
-    const subscribe = vi.spyOn(notesApi, 'subscribeToNoteGeneration').mockImplementation((_id, _onJob, callback) => {
+    const subscribe = vi.spyOn(notesApi, 'subscribeToNoteGenerationEvents').mockImplementation((_id, _onJob, callback) => {
       onError = callback;
       return { close: vi.fn(), readyState: 2 } as unknown as EventSource;
     });
@@ -79,7 +79,7 @@ describe('useNotes generation tracking', () => {
     let onError: (error: Error, retryable: boolean) => void = () => {};
     vi.spyOn(notesApi, 'listNotes').mockResolvedValue([]);
     vi.spyOn(notesApi, 'listNoteGenerations').mockResolvedValue([activeJob]);
-    vi.spyOn(notesApi, 'subscribeToNoteGeneration').mockImplementation((_id, handleJob, handleError) => {
+    vi.spyOn(notesApi, 'subscribeToNoteGenerationEvents').mockImplementation((_id, handleJob, handleError) => {
       onJob = handleJob;
       onError = handleError;
       return { close: vi.fn() } as unknown as EventSource;
@@ -98,7 +98,7 @@ describe('useNotes generation tracking', () => {
     vi.spyOn(notesApi, 'listNotes').mockResolvedValue([]);
     vi.spyOn(notesApi, 'listNoteGenerations').mockResolvedValue([]);
     vi.spyOn(notesApi, 'createNoteGeneration').mockImplementation(() => new Promise((resolve) => { accept = resolve; }));
-    const subscribe = vi.spyOn(notesApi, 'subscribeToNoteGeneration');
+    const subscribe = vi.spyOn(notesApi, 'subscribeToNoteGenerationEvents');
     const { result, unmount } = renderHook(() => useNotes());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     let submission: Promise<boolean> = Promise.resolve(false);
@@ -118,7 +118,7 @@ describe('useNotes generation tracking', () => {
       .mockResolvedValueOnce([note, olderNote]);
     vi.spyOn(notesApi, 'listNoteGenerations').mockResolvedValue([activeJob]);
     vi.spyOn(notesApi, 'createNote').mockResolvedValue(note);
-    vi.spyOn(notesApi, 'subscribeToNoteGeneration').mockImplementation((_id, callback) => {
+    vi.spyOn(notesApi, 'subscribeToNoteGenerationEvents').mockImplementation((_id, callback) => {
       onJob = callback;
       return { close: vi.fn() } as unknown as EventSource;
     });
@@ -155,7 +155,7 @@ describe('useNotes generation tracking', () => {
       .mockResolvedValueOnce([olderNote])
       .mockResolvedValueOnce([note, olderNote]);
     vi.spyOn(notesApi, 'listNoteGenerations').mockResolvedValue([activeJob]);
-    vi.spyOn(notesApi, 'subscribeToNoteGeneration').mockImplementation((_id, handleJob) => {
+    vi.spyOn(notesApi, 'subscribeToNoteGenerationEvents').mockImplementation((_id, handleJob) => {
       onJob.mockImplementation(handleJob);
       return { close } as unknown as EventSource;
     });
@@ -164,7 +164,7 @@ describe('useNotes generation tracking', () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.generationJobs).toEqual([activeJob]);
-    expect(notesApi.subscribeToNoteGeneration).toHaveBeenCalledWith(activeJob.id, expect.any(Function), expect.any(Function));
+    expect(notesApi.subscribeToNoteGenerationEvents).toHaveBeenCalledWith(activeJob.id, expect.any(Function), expect.any(Function));
 
     const completedJob: NoteGenerationJob = {
       ...activeJob,
@@ -185,12 +185,12 @@ describe('useNotes generation tracking', () => {
     const close = vi.fn();
     vi.spyOn(notesApi, 'listNotes').mockResolvedValue([]);
     vi.spyOn(notesApi, 'listNoteGenerations').mockResolvedValue([activeJob]);
-    vi.spyOn(notesApi, 'subscribeToNoteGeneration').mockReturnValue({ close } as unknown as EventSource);
+    vi.spyOn(notesApi, 'subscribeToNoteGenerationEvents').mockReturnValue({ close } as unknown as EventSource);
 
     const { result, unmount } = renderHook(() => useNotes());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(notesApi.subscribeToNoteGeneration).toHaveBeenCalledWith(activeJob.id, expect.any(Function), expect.any(Function));
+    expect(notesApi.subscribeToNoteGenerationEvents).toHaveBeenCalledWith(activeJob.id, expect.any(Function), expect.any(Function));
     unmount();
 
     expect(close).toHaveBeenCalledOnce();
@@ -201,7 +201,7 @@ describe('useNotes generation tracking', () => {
     vi.spyOn(notesApi, 'listNotes').mockResolvedValue([]);
     vi.spyOn(notesApi, 'listNoteGenerations').mockResolvedValue([]);
     vi.spyOn(notesApi, 'createNoteGeneration').mockResolvedValue(activeJob);
-    vi.spyOn(notesApi, 'subscribeToNoteGeneration').mockReturnValue({ close } as unknown as EventSource);
+    vi.spyOn(notesApi, 'subscribeToNoteGenerationEvents').mockReturnValue({ close } as unknown as EventSource);
 
     const { result } = renderHook(() => useNotes());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -214,7 +214,7 @@ describe('useNotes generation tracking', () => {
     });
 
     expect(result.current.generationJobs).toEqual([activeJob]);
-    expect(notesApi.subscribeToNoteGeneration).toHaveBeenCalledWith(activeJob.id, expect.any(Function), expect.any(Function));
+    expect(notesApi.subscribeToNoteGenerationEvents).toHaveBeenCalledWith(activeJob.id, expect.any(Function), expect.any(Function));
     expect(result.current.isCreating).toBe(false);
   });
 });

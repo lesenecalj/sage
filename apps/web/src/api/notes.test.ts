@@ -7,7 +7,7 @@ import {
   deleteNote,
   listNoteGenerations,
   listNotes,
-  subscribeToNoteGeneration,
+  subscribeToNoteGenerationEvents,
   updateNote,
 } from './notes';
 
@@ -112,7 +112,7 @@ describe('Notes API client', () => {
     vi.stubGlobal('EventSource', MockEventSource);
     const onJob = vi.fn();
     const onError = vi.fn();
-    const events = subscribeToNoteGeneration(generationJob.id, onJob, onError) as unknown as MockEventSource;
+    const events = subscribeToNoteGenerationEvents(generationJob.id, onJob, onError) as unknown as MockEventSource;
 
     events.dispatchEvent(new MessageEvent('job', { data: JSON.stringify({ job: generationJob }) }));
 
@@ -149,7 +149,7 @@ describe('Notes API client', () => {
     }
     vi.stubGlobal('EventSource', MockEventSource);
     const onError = vi.fn();
-    const events = subscribeToNoteGeneration(generationJob.id, vi.fn(), onError) as unknown as MockEventSource;
+    const events = subscribeToNoteGenerationEvents(generationJob.id, vi.fn(), onError) as unknown as MockEventSource;
 
     events.dispatchEvent(new MessageEvent('error', {
       data: JSON.stringify({ error: 'Generation job not found.', retryable: false }),
