@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import { z } from 'zod';
 
 import { fromUrlInputSchema } from './from-url.input.js';
@@ -41,13 +39,8 @@ type DeleteNoteResult =
   | { success: true }
   | { success: false; error: 'INVALID_INPUT' | 'NOT_FOUND' };
 
-type GenerateFromUrlResult =
-  | { success: true; note: Note }
-  | { success: false; error: 'INVALID_INPUT' };
-
 export type NotesService = {
   create(input: unknown): Promise<CreateNoteResult>;
-  generateFromUrl(input: unknown): Promise<GenerateFromUrlResult>;
   processGenerationJob: NoteGenerationHandler;
   list(): Promise<Note[]>;
   update(id: unknown, input: unknown): Promise<UpdateNoteResult>;
@@ -86,19 +79,6 @@ export function createNotesService(
       }
 
       return { success: true, note: await repository.create(result.data) };
-    },
-    async generateFromUrl(input) {
-      const result = fromUrlInputSchema.safeParse(input);
-
-      if (!result.success) {
-        return { success: false, error: 'INVALID_INPUT' };
-      }
-      const note = await processGenerationJob({
-        id: randomUUID(),
-        input: result.data,
-        reportProgress: async () => {},
-      });
-      return { success: true, note };
     },
     processGenerationJob,
     async list() {

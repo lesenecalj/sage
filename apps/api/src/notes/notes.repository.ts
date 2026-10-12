@@ -42,7 +42,7 @@ export function createPrismaNotesRepository(
     },
     async list() {
       const notes = await prisma.note.findMany({
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       });
       return notes.map(toNote);
     },

@@ -13,7 +13,6 @@ const page = {
   text: 'Prefer composition.',
   url: 'https://react.dev/learn',
 };
-const input = { url: 'https://react.dev/', instruction: 'Summarize React practices' };
 const noteId = '7d5b9456-eb94-414f-a129-da4aa1bb2c45';
 
 function createNote(id: string, noteInput: CreateNoteInput): Note {
@@ -66,37 +65,18 @@ describe('NotesService', () => {
     expect(repository.create).not.toHaveBeenCalled();
   });
 
-  it('rejects invalid URL note input without calling the generator', async () => {
+  it('rejects invalid job input before reading or summarizing the page', async () => {
     const readPage = vi.fn();
     const summarize = vi.fn();
-    service = createNotesService(createRepositoryStub(), { readPage, summarize });
+    const service = createNotesService(createRepositoryStub(), { readPage, summarize });
 
-    await expect(service.generateFromUrl({ url: 'file:///etc/passwd', instruction: 'Summarize' }))
-      .resolves.toEqual({ success: false, error: 'INVALID_INPUT' });
+    await expect(service.processGenerationJob({
+      id: noteId,
+      input: { url: 'file:///etc/passwd', instruction: 'Summarize' },
+      reportProgress: async () => {},
+    })).rejects.toThrow('Invalid note generation job input.');
     expect(readPage).not.toHaveBeenCalled();
     expect(summarize).not.toHaveBeenCalled();
-  });
-
-  it('saves the generated summary and final page URL', async () => {
-    const repository = createRepositoryStub();
-    const createGenerated = vi.mocked(repository.createGenerated);
-    const readPage = vi.fn().mockResolvedValue(page);
-    const summarize = vi.fn().mockResolvedValue('  Prefer composition.  ');
-    service = createNotesService(repository, { readPage, summarize });
-
-    const result = await service.generateFromUrl(input);
-
-    expect(result).toMatchObject({
-      success: true,
-      note: { title: page.title, content: 'Prefer composition.', sourceUrl: page.url },
-    });
-    expect(readPage).toHaveBeenCalledWith(input.url);
-    expect(summarize).toHaveBeenCalledWith(page, input.instruction);
-    expect(createGenerated).toHaveBeenCalledExactlyOnceWith(expect.any(String), {
-      title: page.title,
-      content: 'Prefer composition.',
-      sourceUrl: page.url,
-    });
   });
 
   it('reports job stages while the service persists the generated note', async () => {
@@ -109,7 +89,11 @@ describe('NotesService', () => {
     });
     const jobId = '7d5b9456-eb94-414f-a129-da4aa1bb2c45';
 
-    const note = await service.processGenerationJob({ id: jobId, input, reportProgress: reportStage });
+    const note = await service.processGenerationJob({
+      id: jobId,
+      input: { url: 'https://react.dev/', instruction: 'Summarize React practices' },
+      reportProgress: reportStage,
+    });
 
     expect(note.id).toBe(jobId);
     expect(stages).toEqual(['reading_page', 'summarizing', 'saving_note']);
@@ -130,7 +114,11 @@ describe('NotesService', () => {
       : vi.fn().mockResolvedValue('Summary');
     service = createNotesService(repository, { readPage, summarize });
 
-    await expect(service.generateFromUrl(input)).rejects.toThrow();
+    await expect(service.processGenerationJob({
+      id: noteId,
+      input: { url: 'https://react.dev/', instruction: 'Summarize React practices' },
+      reportProgress: async () => {},
+    })).rejects.toThrow();
     expect(repository.createGenerated).not.toHaveBeenCalled();
     if (stage === 'reading') expect(summarize).not.toHaveBeenCalled();
   });
@@ -142,7 +130,11 @@ describe('NotesService', () => {
       summarize: async () => '  ',
     });
 
-    await expect(service.generateFromUrl(input)).rejects.toThrow('empty summary');
+    await expect(service.processGenerationJob({
+      id: noteId,
+      input: { url: 'https://react.dev/', instruction: 'Summarize React practices' },
+      reportProgress: async () => {},
+    })).rejects.toThrow('empty summary');
     expect(repository.createGenerated).not.toHaveBeenCalled();
   });
 

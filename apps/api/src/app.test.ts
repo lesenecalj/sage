@@ -1,13 +1,14 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Server } from 'node:http';
+import { TextDecoder } from 'node:util';
 
 import { type Note, type NoteGenerationJob } from '@sage/contracts';
 import { createApp } from './app.js';
 import { fromUrlInputSchema } from './notes/from-url.input.js';
 import type { CreateNoteInput, NotesRepository, UpdateNoteInput } from './notes/notes.repository.js';
 import { createNotesService } from './notes/notes.service.js';
-import type { NoteGenerationJobs } from './notes/note-generation-jobs.port.js';
+import type { NoteGenerationEvent, NoteGenerationJobs } from './notes/note-generation-jobs.port.js';
 
 const noteId = '7d5b9456-eb94-414f-a129-da4aa1bb2c45';
 
@@ -33,7 +34,7 @@ function createRepositoryStub(): NotesRepository {
 
 function createGenerationJobsStub(initialJob: NoteGenerationJob) {
   let job = initialJob;
-  const listeners = new Set<() => void>();
+  const listeners = new Set<(event: NoteGenerationEvent) => void>();
   const service: NoteGenerationJobs = {
     waitUntilReady: async () => {},
     close: async () => {},
@@ -59,9 +60,26 @@ function createGenerationJobsStub(initialJob: NoteGenerationJob) {
     service,
     update(nextJob: NoteGenerationJob) {
       job = nextJob;
-      listeners.forEach((listener) => listener());
+      listeners.forEach((listener) => listener({ type: 'state_changed' }));
     },
   };
+}
+
+async function readSseFrame(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  decoder: TextDecoder,
+  buffer: { value: string },
+): Promise<string> {
+  while (!buffer.value.includes('\n\n')) {
+    const chunk = await reader.read();
+    if (chunk.done) throw new Error('SSE stream ended before the next frame.');
+    buffer.value += decoder.decode(chunk.value, { stream: true });
+  }
+
+  const boundary = buffer.value.indexOf('\n\n');
+  const frame = buffer.value.slice(0, boundary);
+  buffer.value = buffer.value.slice(boundary + 2);
+  return frame;
 }
 
 const initialJob: NoteGenerationJob = {
@@ -143,8 +161,9 @@ describe('notes routes', () => {
       if (!reader) throw new Error('SSE response has no readable body.');
 
       const decoder = new TextDecoder();
-      const initial = await reader.read();
-      expect(decoder.decode(initial.value)).toContain(JSON.stringify({ job: initialJob }));
+      const buffer = { value: '' };
+      const initial = await readSseFrame(reader, decoder, buffer);
+      expect(initial).toContain(JSON.stringify({ job: initialJob }));
 
       const completedJob: NoteGenerationJob = {
         ...initialJob,
@@ -155,9 +174,8 @@ describe('notes routes', () => {
       };
       jobsHarness.update(completedJob);
 
-      const terminal = await reader.read();
-      expect(decoder.decode(terminal.value)).toContain(JSON.stringify({ job: completedJob }));
-      expect(terminal.done).toBe(false);
+      const terminal = await readSseFrame(reader, decoder, buffer);
+      expect(terminal).toContain(JSON.stringify({ job: completedJob }));
       expect((await reader.read()).done).toBe(true);
     } finally {
       server.closeAllConnections();

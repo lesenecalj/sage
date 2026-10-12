@@ -14,20 +14,38 @@ config({ path: fileURLToPath(new URL('../../.env', import.meta.url)) });
 const prisma = new PrismaClient();
 let worker: Worker<unknown, NoteGenerationJobResult, string> | undefined;
 let isShuttingDown = false;
+let prismaConnection: Promise<void> | undefined;
 
 async function shutdown(signal: string) {
   if (isShuttingDown) return;
   isShuttingDown = true;
   console.info(`Generation worker received ${signal}; waiting for active jobs.`);
-  await worker?.close();
-  await prisma.$disconnect();
+  await prismaConnection?.catch(() => {});
+  try {
+    await worker?.close();
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-process.once('SIGINT', () => void shutdown('SIGINT'));
-process.once('SIGTERM', () => void shutdown('SIGTERM'));
+process.once('SIGINT', () => {
+  void shutdown('SIGINT').catch((error: unknown) => {
+    console.error('Unable to shut down note generation worker.', error);
+    process.exitCode = 1;
+  });
+});
+process.once('SIGTERM', () => {
+  void shutdown('SIGTERM').catch((error: unknown) => {
+    console.error('Unable to shut down note generation worker.', error);
+    process.exitCode = 1;
+  });
+});
 
 async function startWorker() {
-  await prisma.$connect();
+  prismaConnection = prisma.$connect();
+  await prismaConnection;
+  if (isShuttingDown) return;
+
   const notesService = createNotesService(createPrismaNotesRepository(prisma), {
     summarize: summarizeWithOllama,
   });
@@ -49,12 +67,22 @@ async function startWorker() {
   });
   worker.on('error', (error) => console.error('Note generation worker error.', error));
   await worker.waitUntilReady();
+  if (isShuttingDown) return;
   console.info('Note generation worker is ready.');
 }
 
 void startWorker().catch(async (error: unknown) => {
+  if (isShuttingDown) return;
   console.error('Unable to start note generation worker.', error);
-  await worker?.close();
-  await prisma.$disconnect();
+  try {
+    await worker?.close();
+  } catch (closeError) {
+    console.error('Unable to close note generation worker after startup failure.', closeError);
+  }
+  try {
+    await prisma.$disconnect();
+  } catch (disconnectError) {
+    console.error('Unable to disconnect Prisma after worker startup failure.', disconnectError);
+  }
   process.exitCode = 1;
 });
