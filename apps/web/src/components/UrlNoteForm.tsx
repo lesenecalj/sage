@@ -73,7 +73,7 @@ export function UrlNoteForm({ isSubmitting = false, onGenerate }: UrlNoteFormPro
         disabled={isSubmitting || isFormSubmitting}
         type="submit"
       >
-        {isSubmitting || isFormSubmitting ? 'Generating note...' : 'Generate note'}
+        {isSubmitting || isFormSubmitting ? 'Submitting...' : 'Generate note'}
       </button>
     </form>
   );

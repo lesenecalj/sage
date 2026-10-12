@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -12,6 +12,7 @@ describe('NotesApp', () => {
   it('shows a loading state while notes are loading', () => {
     useNotes.mockReturnValue({
       notes: [],
+      generationJobs: [],
       isLoading: true,
       isCreating: false,
         pendingNoteIds: new Set(),
@@ -30,6 +31,7 @@ describe('NotesApp', () => {
   it('shows an empty state after loading an empty list', () => {
     useNotes.mockReturnValue({
       notes: [],
+      generationJobs: [],
       isLoading: false,
       isCreating: false,
         pendingNoteIds: new Set(),
@@ -51,6 +53,7 @@ describe('NotesApp', () => {
     const generateFromUrl = vi.fn().mockResolvedValue(true);
     useNotes.mockReturnValue({
       notes: [], isLoading: false, isCreating: false,
+      generationJobs: [],
       pendingNoteIds: new Set(), errorMessage: null,
       create, generateFromUrl, update: vi.fn(), remove: vi.fn(),
     });
@@ -92,6 +95,7 @@ describe('NotesApp', () => {
           createdAt: '2026-09-24T12:00:00.000Z',
         },
       ],
+      generationJobs: [],
       isLoading: false,
       isCreating: false,
         pendingNoteIds: new Set(),
@@ -109,6 +113,76 @@ describe('NotesApp', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Unable to save note.');
   });
 
+  it('shows restored generation status beneath the URL form', async () => {
+    const user = userEvent.setup();
+    useNotes.mockReturnValue({
+      notes: [],
+      generationJobs: [{
+        id: 'c5d0af9d-8b5b-4b78-b088-25b4d4cf2610',
+        status: 'running',
+        stage: 'summarizing',
+        noteId: null,
+        error: null,
+        createdAt: '2026-10-07T12:00:00.000Z',
+        finishedAt: null,
+      }],
+      isLoading: false,
+      isCreating: false,
+      pendingNoteIds: new Set(),
+      errorMessage: null,
+      create: vi.fn(),
+      generateFromUrl: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+    });
+
+    render(<NotesApp />);
+
+    await user.click(screen.getByRole('tab', { name: 'From URL' }));
+    const panel = screen.getByRole('tabpanel');
+    expect(within(panel).getByRole('button', { name: 'Generate note' })).toBeEnabled();
+    expect(within(panel).getByRole('heading', { name: 'Generation activity' })).toBeInTheDocument();
+    expect(within(panel).getByText('Summarizing page')).toBeInTheDocument();
+    expect(within(panel).getByText('Reading page: Done')).toBeInTheDocument();
+  });
+
+  it('hides completed activity after one minute but retains failures', () => {
+    vi.useFakeTimers();
+    try {
+      const now = new Date('2026-10-09T12:00:00.000Z');
+      vi.setSystemTime(now);
+      const completedJob = {
+        id: 'c5d0af9d-8b5b-4b78-b088-25b4d4cf2610',
+        status: 'completed', stage: 'completed', noteId: 'note-1', error: null,
+        createdAt: now.toISOString(), finishedAt: now.toISOString(),
+      };
+      useNotes.mockReturnValue({
+        notes: [], isLoading: false, isCreating: false, isSubmittingGeneration: false,
+        generationJobs: [completedJob, {
+          ...completedJob, id: 'failed-job', status: 'failed', stage: 'failed',
+          noteId: null, error: 'The model is unavailable.',
+        }],
+        pendingNoteIds: new Set(), errorMessage: null,
+        create: vi.fn(), generateFromUrl: vi.fn(), update: vi.fn(), remove: vi.fn(),
+      });
+      const { unmount } = render(<NotesApp />);
+      fireEvent.click(screen.getByRole('tab', { name: 'From URL' }));
+      expect(screen.getByText('Completed')).toBeInTheDocument();
+      expect(screen.getByText('Reading page: Done')).toBeInTheDocument();
+      expect(screen.getByText('Summarizing page: Done')).toBeInTheDocument();
+      expect(screen.getByText('Saving note: Done')).toBeInTheDocument();
+
+      act(() => { vi.advanceTimersByTime(60_000); });
+
+      expect(screen.queryByText('Completed')).not.toBeInTheDocument();
+      expect(screen.getByText('Failed')).toBeInTheDocument();
+      expect(screen.getByText('The model is unavailable.')).toBeInTheDocument();
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('submits edits for an existing note', async () => {
     const user = userEvent.setup();
     const update = vi.fn().mockResolvedValue(true);
@@ -120,6 +194,7 @@ describe('NotesApp', () => {
     };
     useNotes.mockReturnValue({
       notes: [note],
+      generationJobs: [],
       isLoading: false,
       isCreating: false,
         pendingNoteIds: new Set(),
@@ -157,6 +232,7 @@ describe('NotesApp', () => {
           createdAt: '2026-09-24T12:00:00.000Z',
         },
       ],
+      generationJobs: [],
       isLoading: false,
       isCreating: false,
         pendingNoteIds: new Set(),
