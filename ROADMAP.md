@@ -44,11 +44,11 @@ Turn personal notes into a searchable AI assistant.
 
 ## Current Status
 
-The application foundation is complete: React/Vite frontend, Express API, development proxy, and an API health check. Users can create and list notes through PostgreSQL persistence. Retrieval is not implemented yet.
+The application supports note CRUD with PostgreSQL persistence and asynchronous URL-based note generation using Ollama. Generation runs in a separate BullMQ worker, with job state stored in Redis and progress streamed to the frontend over SSE. Retrieval and citations are not implemented yet.
 
 ## Technical TODO
 
-- Extract shared Note request and response Zod schemas into a `packages/contracts` workspace when the API contract grows beyond the current create/list slice.
+- Implement retrieval and citation workflows.
 
 ---
 
@@ -123,9 +123,13 @@ Why should long-running operations happen asynchronously?
 
 ## Goals
 
-- Introduce job processing
-- Index notes in background
+- Process URL-based note generation in a background worker
+- Persist job state and report progress
 - Retry failed jobs
+
+## Current Status
+
+Implemented with BullMQ and Redis. URL note generation runs in a separate worker; retries and progress reporting are configured.
 
 ## Concepts
 
@@ -155,6 +159,10 @@ How should failures be handled?
 - Failure handling
 - Reliability patterns
 
+## Current Status
+
+Retries, idempotent note persistence, and graceful worker shutdown are implemented. Real Redis/worker restart and redelivery behavior still needs verification.
+
 ---
 
 # E4 - Idempotency
@@ -173,6 +181,10 @@ How do we safely retry requests?
 - Idempotency keys
 - Safe retries
 - Duplicate request protection
+
+## Current Status
+
+Repeated processing of a generation job reuses its job ID as the note ID, and repository upsert prevents duplicate notes. Request-level idempotency for duplicate submissions is not implemented.
 
 ---
 
