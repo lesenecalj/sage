@@ -1,8 +1,8 @@
 import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
 
-import type { NoteGenerationJobs } from './notes/note-generation-jobs.port.js';
-import { createNoteGenerationRouter } from './notes/note-generation.router.js';
+import type { NoteGenerationJobs } from './notes/generation/note-generation-jobs.port.js';
+import { createNoteGenerationRouter } from './notes/generation/note-generation.router.js';
 import { createNotesRouter } from './notes/notes.router.js';
 import type { NotesService } from './notes/notes.service.js';
 

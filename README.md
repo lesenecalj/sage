@@ -44,6 +44,107 @@ The Vite development server proxies requests from `/api/*` to the API. Confirm t
 - `packages/contracts`: shared Zod response schemas and inferred types used by the API and web app.
 - `apps/api/tsconfig.build.json`: production build configuration; test files are excluded from `dist`.
 
+### URL note generation lifecycle
+
+The API and the BullMQ worker are separate processes. The browser tracks job status, but it does not own the generation work:
+
+1. The web app submits `POST /note-generations`. The [generation router](apps/api/src/notes/generation/note-generation.router.ts) delegates validation and enqueueing to the [BullMQ job adapter](apps/api/src/workers/note-generation.jobs.ts), which stores the job in Redis and returns its current snapshot with `202 Accepted`. The response's `Location` header points to that job's SSE endpoint; the web API client validates that it is same-origin, uses its path for the initial subscription, and adds the `/api` prefix required by the Vite proxy.
+2. The [worker process](apps/api/src/workers/note-generation.worker.ts) consumes the job, calls the notes service to read the page and generate its content with Ollama, then persists the note through the Prisma repository. It reports each processing stage to BullMQ. Closing or reloading the browser does not cancel this work.
+3. The API's job adapter listens to BullMQ `QueueEvents`. The [SSE handler](apps/api/src/notes/generation/note-generation-events.handler.ts) subscribes to job updates, reads an initial snapshot, and sends both the snapshot and subsequent progress or terminal state to the browser. Updates arriving while the initial snapshot is being loaded are buffered so a state transition is not missed.
+4. The [useNotes hook](apps/web/src/hooks/useNotes.ts) loads notes and saved jobs when the page opens, then reconnects to jobs still queued or running. When a job completes, it refreshes the notes list to show the persisted note. The SSE stream closes when the job reaches a terminal state or the browser disconnects.
+
+```mermaid
+sequenceDiagram
+	autonumber
+	participant UI as Browser / useNotes
+	participant Proxy as Vite API proxy
+	participant API as Express API
+	participant Adapter as BullMQ job adapter
+	participant Redis as Redis queue
+	participant Worker as Generation worker
+	participant Service as NotesService
+	participant Page as Source page
+	participant Ollama
+	participant DB as PostgreSQL
+	participant Events as BullMQ QueueEvents
+	participant SSE as SSE handler
+
+	UI->>Proxy: POST /api/note-generations
+	Proxy->>API: POST /note-generations
+	API->>Adapter: submit(input)
+	Adapter->>Redis: enqueue job
+	Redis-->>Adapter: job
+	Adapter->>Redis: read current job snapshot
+	Redis-->>Adapter: snapshot
+	Adapter-->>API: accepted job snapshot
+	API-->>UI: 202 + job + Location
+	Note over UI,Proxy: Client uses Location and adds /api for the Vite proxy
+
+	par Browser opens and consumes SSE
+		UI->>Proxy: EventSource GET /api/note-generations/{id}/events
+		Proxy->>API: GET /note-generations/{id}/events
+		API->>SSE: handle request
+		SSE->>Adapter: subscribe(id)
+		Adapter->>Events: listen for progress/completed/failed
+		SSE->>Adapter: get(id)
+		Adapter->>Redis: read current job snapshot
+		Redis-->>Adapter: snapshot
+		Adapter-->>SSE: initial snapshot
+		SSE-->>UI: event: job (initial snapshot)
+		Note over SSE,Adapter: Subscribe before reading the snapshot; buffer events during setup
+		Adapter-->>SSE: progress or terminal update
+		SSE-->>UI: event: job (current snapshot)
+	and Worker processes the durable job
+		Redis-->>Worker: deliver queued job
+		Worker->>Service: processGenerationJob(input, reportProgress)
+		Service-->>Worker: reportProgress(reading_page)
+		Worker->>Redis: job.updateProgress(reading_page)
+		Redis-->>Events: progress event
+		Events-->>Adapter: matching job progress
+		Service->>Page: fetch and extract page content
+		Page-->>Service: title, URL, and content
+		Service-->>Worker: reportProgress(summarizing)
+		Worker->>Redis: job.updateProgress(summarizing)
+		Redis-->>Events: progress event
+		Events-->>Adapter: matching job progress
+		Service->>Ollama: summarize content
+		Ollama-->>Service: generated note content
+		Service-->>Worker: reportProgress(saving_note)
+		Worker->>Redis: job.updateProgress(saving_note)
+		Redis-->>Events: progress event
+		Events-->>Adapter: matching job progress
+		Service->>DB: persist note
+		DB-->>Service: saved note
+		Service-->>Worker: generated note
+		Worker->>Redis: complete job with noteId
+		Redis-->>Events: completed event
+		Events-->>Adapter: state changed
+		Adapter->>Redis: read terminal snapshot
+		Redis-->>Adapter: completed snapshot
+		Adapter-->>SSE: terminal job update
+	end
+
+	opt Job completed successfully
+		UI->>Proxy: GET /api/notes
+		Proxy->>API: GET /notes
+		API->>DB: list persisted notes
+		DB-->>API: notes
+		API-->>UI: refreshed notes
+	end
+
+	opt Browser reloads while a job is active
+		UI->>Proxy: GET /api/note-generations
+		Proxy->>API: GET /note-generations
+		API->>Adapter: list retained jobs
+		Adapter->>Redis: read active job snapshots
+		Redis-->>Adapter: queued/running jobs
+		Adapter-->>UI: job snapshots
+		UI->>Proxy: Reopen EventSource for each active job
+	end
+```
+
+Redis is the durable job state; PostgreSQL is the durable note data. SSE only communicates status to the browser and is not responsible for executing or persisting the generation.
+
 ## Commands
 
 ```bash

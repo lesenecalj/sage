@@ -5,10 +5,10 @@ import { TextDecoder } from 'node:util';
 
 import { type Note, type NoteGenerationJob } from '@sage/contracts';
 import { createApp } from './app.js';
-import { fromUrlInputSchema } from './notes/from-url.input.js';
+import { fromUrlInputSchema } from './notes/generation/from-url.input.js';
 import type { CreateNoteInput, NotesRepository, UpdateNoteInput } from './notes/notes.repository.js';
 import { createNotesService } from './notes/notes.service.js';
-import type { NoteGenerationEvent, NoteGenerationJobs } from './notes/note-generation-jobs.port.js';
+import type { NoteGenerationEvent, NoteGenerationJobs } from './notes/generation/note-generation-jobs.port.js';
 
 const noteId = '7d5b9456-eb94-414f-a129-da4aa1bb2c45';
 

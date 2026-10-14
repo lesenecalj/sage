@@ -1,6 +1,6 @@
 import { Queue, type ConnectionOptions } from 'bullmq';
 
-import type { FromUrlInput } from '../notes/from-url.input.js';
+import type { FromUrlInput } from '../notes/generation/from-url.input.js';
 
 export const noteGenerationQueueName = 'note-generation';
 export type NoteGenerationJobResult = { noteId: string };

@@ -11,6 +11,7 @@ export type { Note, NoteGenerationJob } from '@sage/contracts';
 
 export type CreateNoteInput = Pick<Note, 'title' | 'content'>;
 export type GenerateNoteInput = { url: string; instruction: string };
+export type NoteGenerationSubmission = { job: NoteGenerationJob; eventsUrl: string };
 
 const notesResponseSchema = z.object({ notes: z.array(noteSchema) }).strict();
 const noteResponseSchema = z.object({ note: noteSchema }).strict();
@@ -71,7 +72,7 @@ export async function createNote(input: CreateNoteInput): Promise<Note> {
   return body.note;
 }
 
-export async function createNoteGeneration(input: GenerateNoteInput): Promise<NoteGenerationJob> {
+export async function createNoteGeneration(input: GenerateNoteInput): Promise<NoteGenerationSubmission> {
   const response = await fetch('/api/note-generations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -83,7 +84,21 @@ export async function createNoteGeneration(input: GenerateNoteInput): Promise<No
   }
 
   const body = await parseResponse(response, noteGenerationJobResponseSchema);
-  return body.job;
+  const location = response.headers.get('Location');
+  let trackingUrl: URL | undefined;
+  try {
+    if (location) trackingUrl = new URL(location, window.location.origin);
+  } catch {
+    trackingUrl = undefined;
+  }
+  if (!trackingUrl || trackingUrl.origin !== window.location.origin) {
+    throw new ApiError('The API returned an invalid generation tracking URL.', response.status);
+  }
+
+  return {
+    job: body.job,
+    eventsUrl: `/api${trackingUrl.pathname}${trackingUrl.search}${trackingUrl.hash}`,
+  };
 }
 
 export async function listNoteGenerations(signal?: AbortSignal): Promise<NoteGenerationJob[]> {
@@ -95,12 +110,16 @@ export async function listNoteGenerations(signal?: AbortSignal): Promise<NoteGen
   return body.jobs;
 }
 
+export function noteGenerationEventsUrl(id: string): string {
+  return `/api/note-generations/${id}/events`;
+}
+
 export function subscribeToNoteGenerationEvents(
-  id: string,
+  eventsUrl: string,
   onJob: (job: NoteGenerationJob) => void,
   onError: (error: Error, retryable: boolean) => void,
 ): EventSource {
-  const events = new EventSource(`/api/note-generations/${id}/events`);
+  const events = new EventSource(eventsUrl);
 
   events.addEventListener('job', (event) => {
     try {
