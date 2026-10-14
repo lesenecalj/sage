@@ -77,14 +77,48 @@ describe('Notes API client', () => {
 
   it('submits URL note generation and returns the accepted job', async () => {
     const input = { url: 'https://react.dev/learn', instruction: 'Summarize React practices' };
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ job: generationJob }, { status: 202 })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(
+      { job: generationJob },
+      { status: 202, headers: { Location: `/note-generations/${generationJob.id}/events` } },
+    )));
 
-    await expect(createNoteGeneration(input)).resolves.toEqual(generationJob);
+    await expect(createNoteGeneration(input)).resolves.toEqual({
+      job: generationJob,
+      eventsUrl: `/api/note-generations/${generationJob.id}/events`,
+    });
     expect(fetch).toHaveBeenCalledWith('/api/note-generations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     });
+  });
+
+  it('rejects an accepted generation response without its tracking location', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ job: generationJob }, { status: 202 })));
+
+    await expect(createNoteGeneration({ url: 'https://react.dev/learn', instruction: 'Summarize' }))
+      .rejects.toEqual(new ApiError('The API returned an invalid generation tracking URL.', 202));
+  });
+
+  it('uses the server-provided tracking path instead of rebuilding it from the job ID', async () => {
+    const trackingPath = `/generation-events/${generationJob.id}`;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(
+      { job: generationJob },
+      { status: 202, headers: { Location: trackingPath } },
+    )));
+
+    await expect(createNoteGeneration({ url: 'https://react.dev/learn', instruction: 'Summarize' }))
+      .resolves.toMatchObject({ job: generationJob, eventsUrl: `/api${trackingPath}` });
+  });
+
+  it('rejects a tracking location on a different origin', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(
+      { job: generationJob },
+      { status: 202, headers: { Location: 'https://example.com/events' } },
+    )));
+
+    await expect(createNoteGeneration({ url: 'https://react.dev/learn', instruction: 'Summarize' }))
+      .rejects.toEqual(new ApiError('The API returned an invalid generation tracking URL.', 202));
   });
 
   it('loads retained generation jobs', async () => {
@@ -112,7 +146,9 @@ describe('Notes API client', () => {
     vi.stubGlobal('EventSource', MockEventSource);
     const onJob = vi.fn();
     const onError = vi.fn();
-    const events = subscribeToNoteGenerationEvents(generationJob.id, onJob, onError) as unknown as MockEventSource;
+    const events = subscribeToNoteGenerationEvents(
+      `/api/note-generations/${generationJob.id}/events`, onJob, onError,
+    ) as unknown as MockEventSource;
 
     events.dispatchEvent(new MessageEvent('job', { data: JSON.stringify({ job: generationJob }) }));
 
@@ -149,7 +185,9 @@ describe('Notes API client', () => {
     }
     vi.stubGlobal('EventSource', MockEventSource);
     const onError = vi.fn();
-    const events = subscribeToNoteGenerationEvents(generationJob.id, vi.fn(), onError) as unknown as MockEventSource;
+    const events = subscribeToNoteGenerationEvents(
+      `/api/note-generations/${generationJob.id}/events`, vi.fn(), onError,
+    ) as unknown as MockEventSource;
 
     events.dispatchEvent(new MessageEvent('error', {
       data: JSON.stringify({ error: 'Generation job not found.', retryable: false }),

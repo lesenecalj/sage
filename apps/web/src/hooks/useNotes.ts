@@ -7,6 +7,7 @@ import {
   deleteNote,
   listNotes,
   listNoteGenerations,
+  noteGenerationEventsUrl,
   subscribeToNoteGenerationEvents,
   type CreateNoteInput,
   type GenerateNoteInput,
@@ -39,6 +40,7 @@ export function useNotes() {
   const notesRevision = useRef(0);
   const pendingRefresh = useRef<Promise<void>>(Promise.resolve());
 
+  // Serialize list requests and retry the snapshot if a note mutation occurs while one is in flight.
   function refreshNotes(signal: AbortSignal): Promise<void> {
     const refresh = pendingRefresh.current.then(async () => {
       while (!signal.aborted) {
@@ -54,7 +56,7 @@ export function useNotes() {
     return refresh;
   }
 
-  function handleNoteGenerationUpdate(job: NoteGenerationJob) {
+  function applyNoteGenerationSnapshot(job: NoteGenerationJob) {
     setTrackingMessage(null);
     setGenerationJobs((currentJobs) => {
       const jobsById = new Map(currentJobs.map((currentJob) => [currentJob.id, currentJob]));
@@ -66,6 +68,7 @@ export function useNotes() {
       eventSources.current.get(job.id)?.close();
       eventSources.current.delete(job.id);
       if (job.status === 'completed') {
+        // The generated note is persisted before completion, so refresh the list to pick it up.
         const signal = lifecycle.current?.signal;
         if (signal && !signal.aborted) {
           void refreshNotes(signal).catch((error: unknown) => {
@@ -76,13 +79,14 @@ export function useNotes() {
     }
   }
 
-  function ensureNoteGenerationTracking(jobId: string) {
+  function ensureNoteGenerationSubscription(jobId: string, eventsUrl = noteGenerationEventsUrl(jobId)) {
     const signal = lifecycle.current?.signal;
+    // Keep one stream per job and ignore callbacks from a hook instance after unmount.
     if (!signal || signal.aborted || eventSources.current.has(jobId)) return;
     const events = subscribeToNoteGenerationEvents(
-      jobId,
+      eventsUrl,
       (job) => {
-        if (!signal.aborted) handleNoteGenerationUpdate(job);
+        if (!signal.aborted) applyNoteGenerationSnapshot(job);
       },
       (error, retryable) => {
         if (signal.aborted) return;
@@ -109,13 +113,15 @@ export function useNotes() {
         ]);
         if (controller.signal.aborted) return;
 
+        // Keep jobs submitted while the initial server snapshot was loading.
         setGenerationJobs((currentJobs) => {
           const jobsById = new Map(loadedJobs.map((job) => [job.id, job]));
           currentJobs.forEach((job) => jobsById.set(job.id, job));
           return [...jobsById.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
         });
+        // Jobs outlive the page, so reconnect to active jobs restored from the server.
         for (const job of loadedJobs) {
-          if (job.status === 'queued' || job.status === 'running') ensureNoteGenerationTracking(job.id);
+          if (job.status === 'queued' || job.status === 'running') ensureNoteGenerationSubscription(job.id);
         }
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -164,10 +170,14 @@ export function useNotes() {
     setTrackingMessage(null);
 
     try {
-      const job = await createNoteGeneration(input);
+      const submission = await createNoteGeneration(input);
       if (!signal || signal.aborted) return false;
-      handleNoteGenerationUpdate(job);
-      if (job.status === 'queued' || job.status === 'running') ensureNoteGenerationTracking(job.id);
+      const { job } = submission;
+      // Apply the accepted snapshot immediately; only active jobs need an SSE connection.
+      applyNoteGenerationSnapshot(job);
+      if (job.status === 'queued' || job.status === 'running') {
+        ensureNoteGenerationSubscription(job.id, submission.eventsUrl);
+      }
       return true;
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
