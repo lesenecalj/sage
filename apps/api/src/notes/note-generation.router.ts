@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import { createNoteGenerationEventsHandler } from './note-generation-events.handler.js';
-import type { NoteGenerationJobs } from './note-generation-jobs.port.js';
+import type { NoteGenerationJobs } from './note-generation-jobs.js';
 
 const jobIdSchema = z.string().uuid();
 

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-import { fromUrlInputSchema } from './from-url.input.js';
+import { fromUrlInputSchema } from './generation/from-url.input.js';
 import type { Note, NotesRepository, UpdateNoteInput } from './notes.repository.js';
-import { readWebPage, type WebPage } from './web-page.js';
+import { readWebPage, type WebPage } from './generation/web-page.js';
 
 export type NoteGenerationStage = 'reading_page' | 'summarizing' | 'saving_note';
 export type ReportNoteGenerationStage = (stage: NoteGenerationStage) => Promise<void>;

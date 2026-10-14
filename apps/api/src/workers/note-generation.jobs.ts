@@ -6,8 +6,8 @@ import {
   type NoteGenerationJob,
   type NoteGenerationJobStatus,
 } from '@sage/contracts';
-import { fromUrlInputSchema, type FromUrlInput } from '../notes/from-url.input.js';
-import type { NoteGenerationEvent, NoteGenerationJobs, SubmitNoteGenerationResult } from '../notes/note-generation-jobs.port.js';
+import { fromUrlInputSchema, type FromUrlInput } from '../notes/generation/from-url.input.js';
+import type { NoteGenerationEvent, NoteGenerationJobs, SubmitNoteGenerationResult } from '../notes/generation/note-generation-jobs.port.js';
 import {
   createNoteGenerationQueue,
   noteGenerationQueueName,
