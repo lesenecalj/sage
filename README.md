@@ -16,11 +16,16 @@ npm run dev
 ```
 
 `npm start` is an alias for `npm run dev`. On first start, the bootstrap creates
-`apps/api/.env` without overwriting an existing file, starts PostgreSQL, Redis,
-and Ollama with Docker Compose, ensures the configured Ollama model is available,
-generates Prisma Client, applies committed migrations, and starts the API, worker,
-and frontend watchers. Docker keeps database, Redis, and model data in persistent volumes.
-The initial image and model downloads can take a while.
+`apps/api/.env` without overwriting an existing file, starts PostgreSQL with pgvector,
+Redis, and Ollama with Docker Compose, ensures the configured chat and embedding
+models are available, generates Prisma Client, applies committed migrations, and
+starts the API, worker, and frontend watchers. Docker keeps database, Redis, and
+model data in persistent volumes. The initial image and model downloads can take a while.
+
+The embedding model is configured independently with `OLLAMA_EMBEDDING_MODEL`
+(default `nomic-embed-text:v1.5`); `OLLAMA_MODEL` continues to select the note
+summarization model. PostgreSQL uses a dedicated pgvector volume. Back up and
+restore existing database data before changing the PostgreSQL image or volume.
 
 Ollama currently runs in a container and may use CPU inference on macOS, which
 is slower than the native Ollama app. Set `OLLAMA_MODEL` in `apps/api/.env` to
@@ -163,4 +168,6 @@ API behavior is covered by Vitest and Supertest; frontend behavior is covered by
 The current V1 slice supports creating, listing, updating, and deleting notes,
 plus asynchronous note generation from URLs. Notes are stored in PostgreSQL;
 generation jobs and progress are managed by BullMQ in Redis and delivered to the
-frontend over SSE. Import, search, and AI retrieval remain future work.
+frontend over SSE. PostgreSQL has the pgvector extension available and Ollama's
+embedding model has been validated, but notes are not yet chunked or indexed.
+Import, semantic search, generated answers, and citations remain future work.

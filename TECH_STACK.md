@@ -5,10 +5,10 @@
 - Frontend: React 19, TypeScript, Vite, Tailwind CSS 4
 - Backend: Node.js 22+, TypeScript, Express 5, Prisma 6, native ESM
 - API validation: Zod 4 with strict request schemas
-- Persistence: PostgreSQL 16 with Prisma migrations, managed locally with Docker Compose
+- Persistence: PostgreSQL 16 with Prisma 6 and pgvector 0.8.1, managed locally with Docker Compose
 - Testing: Vitest, Supertest, React Testing Library, and jsdom
 
-Ollama powers URL-based note generation. BullMQ stores generation jobs in Redis, and a separate Node.js worker processes them. The API exposes job snapshots and streams progress to the frontend over SSE.
+Ollama powers URL-based note generation. A separate `nomic-embed-text:v1.5` model is configured for future retrieval and has been validated at 768 dimensions. BullMQ stores generation jobs in Redis, and a separate Node.js worker processes them. The API exposes job snapshots and streams progress to the frontend over SSE.
 
 ## Frontend
 
@@ -24,7 +24,8 @@ Ollama powers URL-based note generation. BullMQ stores generation jobs in Redis,
 
 ## Database
 
-- PostgreSQL
+- PostgreSQL 16 with the pgvector 0.8.1 extension enabled
+- Vector persistence and retrieval are not implemented yet
 
 ## ORM
 
@@ -32,11 +33,14 @@ Ollama powers URL-based note generation. BullMQ stores generation jobs in Redis,
 
 ## AI
 
-- Ollama in a Docker container with a configurable Llama model
+- Ollama in a Docker container with independently configured chat and embedding models
+- Chat model: configurable with `OLLAMA_MODEL` (default `llama3.2`)
+- Embedding model: configurable with `OLLAMA_EMBEDDING_MODEL` (default `nomic-embed-text:v1.5`)
 
 ## Embeddings
 
-- Embedding provider to be selected when retrieval is implemented
+- Ollama `nomic-embed-text:v1.5`, validated with document/query prefixes and 768-dimensional output
+- Chunking, asynchronous indexing, and semantic retrieval remain planned work
 
 ## Cache
 

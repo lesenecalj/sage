@@ -41,6 +41,7 @@ try {
 
   run('docker', ['compose', 'up', '--detach', '--wait', 'postgres', 'ollama', 'redis']);
   ensureOllamaModel(process.env.OLLAMA_MODEL ?? 'llama3.2');
+  ensureOllamaModel(process.env.OLLAMA_EMBEDDING_MODEL ?? 'nomic-embed-text:v1.5');
   run(npm, ['run', 'db:generate', '--workspace', '@sage/api']);
   run(npm, ['run', 'db:deploy', '--workspace', '@sage/api']);
   run(npm, ['run', 'build', '--workspace', '@sage/contracts']);
