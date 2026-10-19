@@ -11,6 +11,7 @@ export type UpdateNoteInput = Pick<Note, 'title' | 'content'>;
 export type NotesRepository = {
   create(input: CreateNoteInput): Promise<Note>;
   createGenerated(id: string, input: CreateNoteInput): Promise<Note>;
+  getIndexingRevision(id: string): Promise<string | null>;
   list(): Promise<Note[]>;
   update(id: string, input: UpdateNoteInput): Promise<Note | null>;
   delete(id: string): Promise<boolean>;
@@ -41,6 +42,13 @@ export function createPrismaNotesRepository(
         create: { ...input, id },
       });
       return toNote(note);
+    },
+    async getIndexingRevision(id) {
+      const note = await prisma.note.findUnique({
+        where: { id },
+        select: { indexingRevision: true },
+      });
+      return note?.indexingRevision ?? null;
     },
     async list() {
       const notes = await prisma.note.findMany({

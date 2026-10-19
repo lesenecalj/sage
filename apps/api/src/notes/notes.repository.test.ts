@@ -69,4 +69,15 @@ describe('Prisma notes repository', () => {
     expect(note).not.toHaveProperty('indexingRevision');
     expect(note).not.toHaveProperty('indexingStatus');
   });
+
+  it('reads the persisted indexing revision without selecting public note data', async () => {
+    const findUnique = vi.fn().mockResolvedValue({ indexingRevision: 'revision-1' });
+    const repository = createPrismaNotesRepository({ note: { findUnique } } as never);
+
+    await expect(repository.getIndexingRevision('note-1')).resolves.toBe('revision-1');
+    expect(findUnique).toHaveBeenCalledExactlyOnceWith({
+      where: { id: 'note-1' },
+      select: { indexingRevision: true },
+    });
+  });
 });

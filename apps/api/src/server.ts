@@ -9,14 +9,17 @@ import { createApp } from './app.js';
 import { createPrismaNotesRepository } from './notes/notes.repository.js';
 import { createNotesService } from './notes/notes.service.js';
 import { createRedisNoteGenerationJobs } from './workers/note-generation.jobs.js';
+import { createRedisNoteIndexingJobs } from './workers/note-indexing.jobs.js';
 
 config({ path: fileURLToPath(new URL('../.env', import.meta.url)) });
 
 const port = Number(process.env.PORT ?? 3000);
 const host = '127.0.0.1';
 const prisma = new PrismaClient();
+const noteIndexingJobs = createRedisNoteIndexingJobs();
 const notesService = createNotesService(createPrismaNotesRepository(prisma), {
 	summarize: summarizeWithOllama,
+	indexingJobs: noteIndexingJobs,
 });
 const noteGenerationJobs = createRedisNoteGenerationJobs();
 const app = createApp({ notesService, noteGenerationJobs });
@@ -41,7 +44,7 @@ function listen(): Promise<Server> {
 
 async function startServer() {
 	await prisma.$connect();
-	await noteGenerationJobs.waitUntilReady();
+	await Promise.all([noteGenerationJobs.waitUntilReady(), noteIndexingJobs.waitUntilReady()]);
 
 	const server = await listen();
 	console.info(`SAGE API listening on http://${host}:${port}`);
@@ -60,7 +63,7 @@ async function startServer() {
 				process.exitCode = 1;
 			}
 
-			await Promise.all([noteGenerationJobs.close(), prisma.$disconnect()]);
+			await Promise.all([noteGenerationJobs.close(), noteIndexingJobs.close(), prisma.$disconnect()]);
 		});
 		server.closeAllConnections();
 	}
@@ -71,6 +74,6 @@ async function startServer() {
 
 void startServer().catch(async (error: unknown) => {
 	console.error('Unable to start SAGE API.', error);
-	await Promise.all([noteGenerationJobs.close(), prisma.$disconnect()]);
+	await Promise.all([noteGenerationJobs.close(), noteIndexingJobs.close(), prisma.$disconnect()]);
 	process.exitCode = 1;
 });
