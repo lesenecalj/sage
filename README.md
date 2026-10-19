@@ -18,9 +18,15 @@ npm run dev
 `npm start` is an alias for `npm run dev`. On first start, the bootstrap creates
 `apps/api/.env` without overwriting an existing file, starts PostgreSQL with pgvector,
 Redis, and Ollama with Docker Compose, ensures the configured chat and embedding
-models are available, generates Prisma Client, applies committed migrations, and
-starts the API, worker, and frontend watchers. Docker keeps database, Redis, and
-model data in persistent volumes. The initial image and model downloads can take a while.
+models are available, generates Prisma Client, synchronizes the local database
+from the Prisma schema, and starts the API, worker, and frontend watchers. Docker
+keeps database, Redis, and model data in persistent volumes. The initial image
+and model downloads can take a while.
+
+This project is pre-production: Prisma models are the schema source of truth and
+`prisma db push` applies local schema changes without creating migration files.
+Back up data before destructive model changes. Establish a migration workflow
+when a production deployment is planned.
 
 The embedding model is configured independently with `OLLAMA_EMBEDDING_MODEL`
 (default `nomic-embed-text:v1.5`); `OLLAMA_MODEL` continues to select the note
@@ -157,7 +163,7 @@ npm run build  # Build frontend and backend
 npm run lint   # Type-check frontend and backend
 npm run test   # Run unit tests
 npm run db:generate --workspace @sage/api  # Generate Prisma Client
-npm run db:migrate --workspace @sage/api   # Create and apply a development migration
+npm run db:push --workspace @sage/api      # Synchronize the local database from Prisma
 npm run db:studio --workspace @sage/api    # Inspect the database with Prisma Studio
 ```
 
@@ -168,6 +174,7 @@ API behavior is covered by Vitest and Supertest; frontend behavior is covered by
 The current V1 slice supports creating, listing, updating, and deleting notes,
 plus asynchronous note generation from URLs. Notes are stored in PostgreSQL;
 generation jobs and progress are managed by BullMQ in Redis and delivered to the
-frontend over SSE. PostgreSQL has the pgvector extension available and Ollama's
-embedding model has been validated, but notes are not yet chunked or indexed.
-Import, semantic search, generated answers, and citations remain future work.
+frontend over SSE. PostgreSQL has pgvector enabled. LangChain's recursive
+splitter, Nomic/Ollama adapter, and PGVectorStore integration are configured,
+but asynchronous note indexing is not connected yet. Import, semantic search,
+generated answers, and citations remain future work.
