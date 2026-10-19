@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { Prisma, type Note as PrismaNote, type PrismaClient } from '@prisma/client';
 import type { Note } from '@sage/contracts';
 
@@ -48,7 +50,15 @@ export function createPrismaNotesRepository(
     },
     async update(id, input) {
       try {
-        const note = await prisma.note.update({ where: { id }, data: input });
+        const note = await prisma.note.update({
+          where: { id },
+          data: {
+            ...input,
+            indexingRevision: randomUUID(),
+            indexingStatus: 'pending',
+            indexingError: null,
+          },
+        });
         return toNote(note);
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {

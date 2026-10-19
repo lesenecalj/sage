@@ -35,4 +35,38 @@ describe('Prisma notes repository', () => {
     });
     expect(note).toMatchObject({ id: jobId, title: input.title, sourceUrl: input.sourceUrl });
   });
+
+  it('marks changed notes pending with a fresh revision without exposing indexing metadata', async () => {
+    const id = '7d5b9456-eb94-414f-a129-da4aa1bb2c45';
+    const previousRevision = 'previous-revision';
+    const input = { title: 'Updated', content: 'Changed content.' };
+    const update = vi.fn().mockResolvedValue({
+      ...input,
+      id,
+      sourceUrl: null,
+      createdAt: new Date('2026-09-27T12:00:00.000Z'),
+      updatedAt: new Date('2026-09-27T12:01:00.000Z'),
+      indexingRevision: previousRevision,
+      indexingStatus: 'ready',
+      indexingError: null,
+    });
+    const repository = createPrismaNotesRepository({ note: { update } } as never);
+
+    const note = await repository.update(id, input);
+
+    expect(update).toHaveBeenCalledExactlyOnceWith({
+      where: { id },
+      data: {
+        ...input,
+        indexingRevision: expect.any(String),
+        indexingStatus: 'pending',
+        indexingError: null,
+      },
+    });
+    const updateCall = update.mock.calls[0];
+    if (!updateCall) throw new Error('Expected the note update call.');
+    expect(updateCall[0].data.indexingRevision).not.toBe(previousRevision);
+    expect(note).not.toHaveProperty('indexingRevision');
+    expect(note).not.toHaveProperty('indexingStatus');
+  });
 });
