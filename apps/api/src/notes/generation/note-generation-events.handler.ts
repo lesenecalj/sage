@@ -1,7 +1,7 @@
 import type { RequestHandler, Response } from 'express';
 
 import type { NoteGenerationJob } from '@sage/contracts';
-import type { NoteGenerationEvent, NoteGenerationJobs } from './note-generation-jobs.port.js';
+import type { NoteGenerationEvent, NoteGenerationJobs } from '../../workers/types.js';
 
 export function createNoteGenerationEventsHandler(
   generationJobs: NoteGenerationJobs,
