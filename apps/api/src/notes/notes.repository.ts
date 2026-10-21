@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { Prisma, type Note as PrismaNote, type PrismaClient } from '@prisma/client';
 import type { Note } from '@sage/contracts';
 
@@ -9,6 +11,7 @@ export type UpdateNoteInput = Pick<Note, 'title' | 'content'>;
 export type NotesRepository = {
   create(input: CreateNoteInput): Promise<Note>;
   createGenerated(id: string, input: CreateNoteInput): Promise<Note>;
+  getIndexingRevision(id: string): Promise<string | null>;
   list(): Promise<Note[]>;
   update(id: string, input: UpdateNoteInput): Promise<Note | null>;
   delete(id: string): Promise<boolean>;
@@ -40,6 +43,13 @@ export function createPrismaNotesRepository(
       });
       return toNote(note);
     },
+    async getIndexingRevision(id) {
+      const note = await prisma.note.findUnique({
+        where: { id },
+        select: { indexingRevision: true },
+      });
+      return note?.indexingRevision ?? null;
+    },
     async list() {
       const notes = await prisma.note.findMany({
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -48,7 +58,15 @@ export function createPrismaNotesRepository(
     },
     async update(id, input) {
       try {
-        const note = await prisma.note.update({ where: { id }, data: input });
+        const note = await prisma.note.update({
+          where: { id },
+          data: {
+            ...input,
+            indexingRevision: randomUUID(),
+            indexingStatus: 'pending',
+            indexingError: null,
+          },
+        });
         return toNote(note);
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {

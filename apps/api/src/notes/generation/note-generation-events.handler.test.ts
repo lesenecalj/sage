@@ -3,8 +3,8 @@ import type { NextFunction, Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { NoteGenerationJob } from '@sage/contracts';
-import type { NoteGenerationEvent, NoteGenerationJobs } from './note-generation-jobs.port.js';
-import { createNoteGenerationEventsHandler } from './note-generation-events.handler.js';
+import type { NoteGenerationEvent, NoteGenerationJobs } from '../../workers/types.js';
+import { createNoteGenerationEventsHandler } from '../../events/note-generation.event.handler.js';
 
 const job: NoteGenerationJob = {
   id: '7d5b9456-eb94-414f-a129-da4aa1bb2c45',

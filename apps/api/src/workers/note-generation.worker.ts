@@ -8,10 +8,12 @@ import { summarizeWithOllama } from '../ai/ollama-note-summarizer.js';
 import { createPrismaNotesRepository } from '../notes/notes.repository.js';
 import { noteGenerationQueueName, redisConnectionOptions, type NoteGenerationJobResult } from './note-generation.queue.js';
 import { createNotesService } from '../notes/notes.service.js';
+import { createRedisNoteIndexingJobs } from './note-indexing.jobs.js';
 
 config({ path: fileURLToPath(new URL('../../.env', import.meta.url)) });
 
 const prisma = new PrismaClient();
+const noteIndexingJobs = createRedisNoteIndexingJobs();
 let worker: Worker<unknown, NoteGenerationJobResult, string> | undefined;
 let isShuttingDown = false;
 let prismaConnection: Promise<void> | undefined;
@@ -24,7 +26,7 @@ async function shutdown(signal: string) {
   try {
     await worker?.close();
   } finally {
-    await prisma.$disconnect();
+    await Promise.all([noteIndexingJobs.close(), prisma.$disconnect()]);
   }
 }
 
@@ -43,11 +45,12 @@ process.once('SIGTERM', () => {
 
 async function startWorker() {
   prismaConnection = prisma.$connect();
-  await prismaConnection;
+  await Promise.all([prismaConnection, noteIndexingJobs.waitUntilReady()]);
   if (isShuttingDown) return;
 
   const notesService = createNotesService(createPrismaNotesRepository(prisma), {
     summarize: summarizeWithOllama,
+    indexingJobs: noteIndexingJobs,
   });
   worker = new Worker<unknown, NoteGenerationJobResult, string>(
     noteGenerationQueueName,
@@ -79,6 +82,11 @@ void startWorker().catch(async (error: unknown) => {
   } catch (closeError) {
     console.error('Unable to close note generation worker after startup failure.', closeError);
   }
+    try {
+      await noteIndexingJobs.close();
+    } catch (closeError) {
+      console.error('Unable to close note indexing jobs after startup failure.', closeError);
+    }
   try {
     await prisma.$disconnect();
   } catch (disconnectError) {

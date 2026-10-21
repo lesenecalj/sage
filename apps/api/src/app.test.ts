@@ -8,7 +8,7 @@ import { createApp } from './app.js';
 import { fromUrlInputSchema } from './notes/generation/from-url.input.js';
 import type { CreateNoteInput, NotesRepository, UpdateNoteInput } from './notes/notes.repository.js';
 import { createNotesService } from './notes/notes.service.js';
-import type { NoteGenerationEvent, NoteGenerationJobs } from './notes/generation/note-generation-jobs.port.js';
+import type { NoteGenerationEvent, NoteGenerationJobs } from './workers/types.js';
 
 const noteId = '7d5b9456-eb94-414f-a129-da4aa1bb2c45';
 
@@ -26,11 +26,14 @@ function createRepositoryStub(): NotesRepository {
   return {
     create: vi.fn(async (input) => createNote(noteId, input)),
     createGenerated: vi.fn(async (id, input) => createNote(id, input)),
+    getIndexingRevision: vi.fn(async () => 'revision-1'),
     list: vi.fn(async () => []),
     update: vi.fn(async (_id: string, _input: UpdateNoteInput) => null),
     delete: vi.fn(async (_id: string) => false),
   };
 }
+
+const indexingJobs = { enqueue: async () => {} };
 
 function createGenerationJobsStub(initialJob: NoteGenerationJob) {
   let job = initialJob;
@@ -98,7 +101,7 @@ let jobsHarness: ReturnType<typeof createGenerationJobsStub>;
 beforeEach(() => {
   jobsHarness = createGenerationJobsStub(initialJob);
   app = createApp({
-    notesService: createNotesService(createRepositoryStub(), { summarize: async () => '' }),
+    notesService: createNotesService(createRepositoryStub(), { summarize: async () => '', indexingJobs }),
     noteGenerationJobs: jobsHarness.service,
   });
 });
@@ -197,7 +200,7 @@ describe('notes routes', () => {
     vi.mocked(repository.create).mockResolvedValue(note);
     vi.mocked(repository.list).mockResolvedValue([note]);
     app = createApp({
-      notesService: createNotesService(repository, { summarize: async () => '' }),
+      notesService: createNotesService(repository, { summarize: async () => '', indexingJobs }),
       noteGenerationJobs: jobsHarness.service,
     });
 
@@ -231,7 +234,7 @@ describe('notes routes', () => {
     };
     vi.mocked(repository.update).mockResolvedValue(note);
     app = createApp({
-      notesService: createNotesService(repository, { summarize: async () => '' }),
+      notesService: createNotesService(repository, { summarize: async () => '', indexingJobs }),
       noteGenerationJobs: jobsHarness.service,
     });
 
@@ -272,7 +275,7 @@ describe('notes routes', () => {
     vi.mocked(repository.create).mockResolvedValue(note);
     vi.mocked(repository.delete).mockResolvedValue(true);
     app = createApp({
-      notesService: createNotesService(repository, { summarize: async () => '' }),
+      notesService: createNotesService(repository, { summarize: async () => '', indexingJobs }),
       noteGenerationJobs: jobsHarness.service,
     });
     const noteId = note.id;

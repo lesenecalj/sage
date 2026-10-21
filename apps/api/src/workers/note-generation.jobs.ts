@@ -7,7 +7,7 @@ import {
   type NoteGenerationJobStatus,
 } from '@sage/contracts';
 import { fromUrlInputSchema, type FromUrlInput } from '../notes/generation/from-url.input.js';
-import type { NoteGenerationEvent, NoteGenerationJobs, SubmitNoteGenerationResult } from '../notes/generation/note-generation-jobs.port.js';
+import type { NoteGenerationEvent, NoteGenerationJobs, SubmitNoteGenerationResult } from './types.js';
 import {
   createNoteGenerationQueue,
   noteGenerationQueueName,
@@ -24,19 +24,23 @@ function statusFor(state: string): NoteGenerationJobStatus {
   return 'queued';
 }
 
-function toSnapshot(job: Job<FromUrlInput, NoteGenerationJobResult, string>, status: NoteGenerationJobStatus): NoteGenerationJob {
+function stageFor(
+  job: Job<FromUrlInput, NoteGenerationJobResult, string>,
+  status: NoteGenerationJobStatus,
+) {
+  if (status === 'completed') return 'completed';
+  if (status === 'failed') return 'failed';
+
   const progress = typeof job.progress === 'object' && job.progress !== null && 'stage' in job.progress
     ? noteGenerationJobStageSchema.safeParse(job.progress.stage)
     : null;
-  const stage = status === 'completed'
-    ? 'completed'
-    : status === 'failed'
-      ? 'failed'
-      : progress?.success
-        ? progress.data
-        : status === 'running'
-          ? 'reading_page'
-          : 'queued';
+
+  if (progress?.success) return progress.data;
+  return status === 'running' ? 'reading_page' : 'queued';
+}
+
+function toSnapshot(job: Job<FromUrlInput, NoteGenerationJobResult, string>, status: NoteGenerationJobStatus): NoteGenerationJob {
+  const stage = stageFor(job, status);
   const noteId = status === 'completed' && typeof job.returnvalue?.noteId === 'string'
     ? job.returnvalue.noteId
     : null;

@@ -13,3 +13,4 @@ applyTo: "apps/api/**/*.ts"
 - Keep test helpers local by default. Extract shared test support only when multiple tests have a real need for the same behavior and the abstraction makes those tests simpler.
 - Add or update focused Vitest/Supertest tests for the changed service or HTTP contract. Prefer the existing in-memory and stub implementations in tests over adding infrastructure.
 - Follow the existing native ESM import conventions, including `.js` extensions in TypeScript imports.
+- While SAGE is pre-production, change Prisma models directly and synchronize the local database with `prisma db push`; do not create or maintain migration files. Establish a migration-based workflow and baseline when production is planned. Inspect possible data loss before destructive schema changes.
