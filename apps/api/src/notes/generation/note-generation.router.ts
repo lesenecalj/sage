@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { createNoteGenerationEventsHandler } from '../../events/note-generation.event.handler.js';
 import type { NoteGenerationJobs } from '../../workers/types.js';
+import { fromUrlInputSchema } from './from-url.input.js';
 
 const jobIdSchema = z.string().uuid();
 
@@ -13,16 +14,16 @@ export function createNoteGenerationRouter(
   const streamEvents = createNoteGenerationEventsHandler(noteGenerationJobs);
 
   router.post('/', async (request, response) => {
-    const result = await noteGenerationJobs.submit(request.body);
-
+    const result = fromUrlInputSchema.safeParse(request.body);
     if (!result.success) {
       response.status(400).json({ error: 'invalid URL note input' });
       return;
     }
 
-    response.location(`/note-generations/${result.job.id}/events`)
+    const job = await noteGenerationJobs.submit(result.data);
+    response.location(`/note-generations/${job.id}/events`)
       .status(202)
-      .json({ job: result.job });
+      .json({ job });
   });
 
   router.get('/', async (_request, response) => {

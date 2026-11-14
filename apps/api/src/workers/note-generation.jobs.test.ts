@@ -2,7 +2,6 @@ import { EventEmitter } from 'node:events';
 import type { QueueEvents } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';
 
-import { noteGenerationJobSchema } from '@sage/contracts';
 import { createNoteGenerationJobs } from './note-generation.jobs.js';
 import { noteGenerationQueueName, type createNoteGenerationQueue } from './note-generation.queue.js';
 
@@ -25,20 +24,15 @@ describe('generation progress adapter', () => {
     const result = await jobs.submit(input);
 
     expect(result).toEqual({
-      success: true,
-      job: {
-        id: expect.any(String),
-        status: 'queued',
-        stage: 'queued',
-        noteId: null,
-        error: null,
-        createdAt: new Date(timestamp).toISOString(),
-        finishedAt: null,
-      },
+      id: expect.any(String),
+      status: 'queued',
+      stage: 'queued',
+      noteId: null,
+      error: null,
+      createdAt: new Date(timestamp).toISOString(),
+      finishedAt: null,
     });
-    if (!result.success) throw new Error('Expected an accepted job.');
-    expect(noteGenerationJobSchema.safeParse(result.job).success).toBe(true);
-    expect(add).toHaveBeenCalledExactlyOnceWith(noteGenerationQueueName, input, { jobId: result.job.id });
+    expect(add).toHaveBeenCalledExactlyOnceWith(noteGenerationQueueName, input, { jobId: result.id });
     expect(getState).not.toHaveBeenCalled();
     expect(getJob).not.toHaveBeenCalled();
   });

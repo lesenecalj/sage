@@ -6,8 +6,8 @@ import {
   type NoteGenerationJob,
   type NoteGenerationJobStatus,
 } from '@sage/contracts';
-import { fromUrlInputSchema, type FromUrlInput } from '../notes/generation/from-url.input.js';
-import type { NoteGenerationEvent, NoteGenerationJobs, SubmitNoteGenerationResult } from './types.js';
+import type { FromUrlInput } from '../notes/generation/from-url.input.js';
+import type { NoteGenerationEvent, NoteGenerationJobs } from './types.js';
 import {
   createNoteGenerationQueue,
   noteGenerationQueueName,
@@ -128,23 +128,17 @@ export function createNoteGenerationJobs(queue: GenerationQueue, events: QueueEv
       subscribers.clear();
       await Promise.all([queue.close(), events.close()]);
     },
-    async submit(input): Promise<SubmitNoteGenerationResult> {
-      const result = fromUrlInputSchema.safeParse(input);
-      if (!result.success) return { success: false, error: 'INVALID_INPUT' };
-
+    async submit(input) {
       const jobId = randomUUID();
-      const job = await queue.add(noteGenerationQueueName, result.data, { jobId });
+      const job = await queue.add(noteGenerationQueueName, input, { jobId });
       return {
-        success: true,
-        job: {
-          id: jobId,
-          status: 'queued',
-          stage: 'queued',
-          noteId: null,
-          error: null,
-          createdAt: new Date(job.timestamp).toISOString(),
-          finishedAt: null,
-        },
+        id: jobId,
+        status: 'queued',
+        stage: 'queued',
+        noteId: null,
+        error: null,
+        createdAt: new Date(job.timestamp).toISOString(),
+        finishedAt: null,
       };
     },
     get,

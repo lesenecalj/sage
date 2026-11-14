@@ -96,7 +96,7 @@ describe('note generation events handler', () => {
     const unsubscribe = vi.fn();
     const jobs: NoteGenerationJobs = {
       waitUntilReady: async () => {}, close: async () => {},
-      submit: async () => ({ success: false, error: 'INVALID_INPUT' }),
+      submit: async () => job,
       get, list: async () => [],
       subscribe: (_id, callback) => { listener = callback; return unsubscribe; },
     };
@@ -146,7 +146,7 @@ describe('note generation events handler', () => {
     const unsubscribe = vi.fn();
     const jobs: NoteGenerationJobs = {
       waitUntilReady: async () => {}, close: async () => {},
-      submit: async () => ({ success: false, error: 'INVALID_INPUT' }),
+      submit: async () => job,
       get, list: async () => [],
       subscribe: (_id, callback) => { listener = callback; return unsubscribe; },
     };
@@ -190,7 +190,7 @@ describe('note generation events handler', () => {
     const jobs: NoteGenerationJobs = {
       waitUntilReady: async () => {},
       close: async () => {},
-      submit: async () => ({ success: false, error: 'INVALID_INPUT' }),
+      submit: async () => job,
       get,
       list: async () => [],
       subscribe: () => unsubscribe,
@@ -237,7 +237,7 @@ describe('note generation events handler', () => {
     };
     const jobs: NoteGenerationJobs = {
       waitUntilReady: async () => {}, close: async () => {},
-      submit: async () => ({ success: false, error: 'INVALID_INPUT' }),
+      submit: async () => job,
       get: vi.fn().mockResolvedValueOnce(job).mockResolvedValueOnce(completedJob),
       list: async () => [],
       subscribe: (_id, callback) => { listener = callback; return () => {}; },

@@ -1,8 +1,5 @@
 import type { NoteGenerationJob } from '@sage/contracts';
-
-export type SubmitNoteGenerationResult =
-  | { success: true; job: NoteGenerationJob }
-  | { success: false; error: 'INVALID_INPUT' };
+import type { FromUrlInput } from '../notes/generation/from-url.input.js';
 
 export type NoteGenerationEvent =
   | { type: 'progress'; stage: 'reading_page' | 'summarizing' | 'saving_note' }
@@ -12,7 +9,7 @@ export type NoteGenerationEvent =
 export type NoteGenerationJobs = {
   waitUntilReady(): Promise<void>;
   close(): Promise<void>;
-  submit(input: unknown): Promise<SubmitNoteGenerationResult>;
+  submit(input: FromUrlInput): Promise<NoteGenerationJob>;
   get(id: string): Promise<NoteGenerationJob | null>;
   list(): Promise<NoteGenerationJob[]>;
   subscribe(id: string, listener: (event: NoteGenerationEvent) => void): () => void;

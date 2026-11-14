@@ -5,7 +5,7 @@ import { TextDecoder } from 'node:util';
 
 import { type Note, type NoteGenerationJob } from '@sage/contracts';
 import { createApp } from './app.js';
-import { fromUrlInputSchema } from './notes/generation/from-url.input.js';
+import type { FromUrlInput } from './notes/generation/from-url.input.js';
 import type { CreateNoteInput, NotesRepository, UpdateNoteInput } from './notes/notes.repository.js';
 import { createNotesService } from './notes/notes.service.js';
 import type { NoteGenerationEvent, NoteGenerationJobs } from './workers/types.js';
@@ -42,11 +42,7 @@ function createGenerationJobsStub(initialJob: NoteGenerationJob) {
   const service: NoteGenerationJobs = {
     waitUntilReady: async () => {},
     close: async () => {},
-    async submit(input) {
-      return fromUrlInputSchema.safeParse(input).success
-        ? { success: true, job }
-        : { success: false, error: 'INVALID_INPUT' };
-    },
+    submit: vi.fn(async (_input: FromUrlInput) => job),
     async get(id) {
       return id === job.id ? job : null;
     },
@@ -128,6 +124,10 @@ describe('notes routes', () => {
     expect(response.body).toEqual({
       job: initialJob,
     });
+    expect(jobsHarness.service.submit).toHaveBeenCalledExactlyOnceWith({
+      url: 'https://example.com/article',
+      instruction: 'Summarize the key ideas.',
+    });
   });
 
   it.each([
@@ -139,6 +139,7 @@ describe('notes routes', () => {
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ error: 'invalid URL note input' });
+    expect(jobsHarness.service.submit).not.toHaveBeenCalled();
   });
 
   it('lists and retrieves persisted job snapshots', async () => {
