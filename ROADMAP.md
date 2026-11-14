@@ -44,11 +44,12 @@ Turn personal notes into a searchable AI assistant.
 
 ## Current Status
 
-The application supports note CRUD with PostgreSQL persistence and asynchronous URL-based note generation using Ollama. Generation runs in a separate BullMQ worker, with job state stored in Redis and progress streamed to the frontend over SSE. Retrieval and citations are not implemented yet.
+The application supports note CRUD with PostgreSQL persistence and asynchronous URL-based note generation using Ollama. Generation runs in a separate BullMQ worker, with job state stored in Redis and progress streamed to the frontend over SSE. PostgreSQL's pgvector extension and the independent Ollama embedding model have been validated. LangChain's recursive splitter, Nomic/Ollama adapter, and PGVectorStore integration are configured; asynchronous indexing, semantic retrieval, generated answers, and citations are not implemented yet.
 
 ## Technical TODO
 
 - Implement retrieval and citation workflows.
+- Planned next increment: [semantic note retrieval](docs/plans/semantic-retrieval.md), covering English notes, API-only retrieval and evaluation, and asynchronous indexing with Ollama, pgvector, and BullMQ. Phases 1 (model and infrastructure validation) and 2 (passage schema and chunking) are complete; Phase 3 (asynchronous indexing) has not started.
 
 ---
 

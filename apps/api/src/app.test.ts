@@ -5,10 +5,10 @@ import { TextDecoder } from 'node:util';
 
 import { type Note, type NoteGenerationJob } from '@sage/contracts';
 import { createApp } from './app.js';
-import { fromUrlInputSchema } from './notes/generation/from-url.input.js';
+import type { FromUrlInput } from './notes/generation/from-url.input.js';
 import type { CreateNoteInput, NotesRepository, UpdateNoteInput } from './notes/notes.repository.js';
 import { createNotesService } from './notes/notes.service.js';
-import type { NoteGenerationEvent, NoteGenerationJobs } from './notes/generation/note-generation-jobs.port.js';
+import type { NoteGenerationEvent, NoteGenerationJobs } from './workers/types.js';
 
 const noteId = '7d5b9456-eb94-414f-a129-da4aa1bb2c45';
 
@@ -26,11 +26,15 @@ function createRepositoryStub(): NotesRepository {
   return {
     create: vi.fn(async (input) => createNote(noteId, input)),
     createGenerated: vi.fn(async (id, input) => createNote(id, input)),
+    getById: vi.fn(async () => null),
+    getIndexingRevision: vi.fn(async () => 'revision-1'),
     list: vi.fn(async () => []),
     update: vi.fn(async (_id: string, _input: UpdateNoteInput) => null),
     delete: vi.fn(async (_id: string) => false),
   };
 }
+
+const indexingJobs = { enqueue: async () => {} };
 
 function createGenerationJobsStub(initialJob: NoteGenerationJob) {
   let job = initialJob;
@@ -38,11 +42,7 @@ function createGenerationJobsStub(initialJob: NoteGenerationJob) {
   const service: NoteGenerationJobs = {
     waitUntilReady: async () => {},
     close: async () => {},
-    async submit(input) {
-      return fromUrlInputSchema.safeParse(input).success
-        ? { success: true, job }
-        : { success: false, error: 'INVALID_INPUT' };
-    },
+    submit: vi.fn(async (_input: FromUrlInput) => job),
     async get(id) {
       return id === job.id ? job : null;
     },
@@ -98,7 +98,7 @@ let jobsHarness: ReturnType<typeof createGenerationJobsStub>;
 beforeEach(() => {
   jobsHarness = createGenerationJobsStub(initialJob);
   app = createApp({
-    notesService: createNotesService(createRepositoryStub(), { summarize: async () => '' }),
+    notesService: createNotesService(createRepositoryStub(), { summarize: async () => '', indexingJobs }),
     noteGenerationJobs: jobsHarness.service,
   });
 });
@@ -124,6 +124,10 @@ describe('notes routes', () => {
     expect(response.body).toEqual({
       job: initialJob,
     });
+    expect(jobsHarness.service.submit).toHaveBeenCalledExactlyOnceWith({
+      url: 'https://example.com/article',
+      instruction: 'Summarize the key ideas.',
+    });
   });
 
   it.each([
@@ -135,6 +139,7 @@ describe('notes routes', () => {
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ error: 'invalid URL note input' });
+    expect(jobsHarness.service.submit).not.toHaveBeenCalled();
   });
 
   it('lists and retrieves persisted job snapshots', async () => {
@@ -197,7 +202,7 @@ describe('notes routes', () => {
     vi.mocked(repository.create).mockResolvedValue(note);
     vi.mocked(repository.list).mockResolvedValue([note]);
     app = createApp({
-      notesService: createNotesService(repository, { summarize: async () => '' }),
+      notesService: createNotesService(repository, { summarize: async () => '', indexingJobs }),
       noteGenerationJobs: jobsHarness.service,
     });
 
@@ -231,7 +236,7 @@ describe('notes routes', () => {
     };
     vi.mocked(repository.update).mockResolvedValue(note);
     app = createApp({
-      notesService: createNotesService(repository, { summarize: async () => '' }),
+      notesService: createNotesService(repository, { summarize: async () => '', indexingJobs }),
       noteGenerationJobs: jobsHarness.service,
     });
 
@@ -272,7 +277,7 @@ describe('notes routes', () => {
     vi.mocked(repository.create).mockResolvedValue(note);
     vi.mocked(repository.delete).mockResolvedValue(true);
     app = createApp({
-      notesService: createNotesService(repository, { summarize: async () => '' }),
+      notesService: createNotesService(repository, { summarize: async () => '', indexingJobs }),
       noteGenerationJobs: jobsHarness.service,
     });
     const noteId = note.id;

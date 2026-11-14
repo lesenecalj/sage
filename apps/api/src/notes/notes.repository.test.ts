@@ -3,6 +3,36 @@ import { describe, expect, it, vi } from 'vitest';
 import { createPrismaNotesRepository } from './notes.repository.js';
 
 describe('Prisma notes repository', () => {
+  it('reads a note by ID without exposing internal fields', async () => {
+    const record = {
+      id: '7d5b9456-eb94-414f-a129-da4aa1bb2c45',
+      title: 'Existing note',
+      content: 'Saved content',
+      sourceUrl: 'https://example.com/',
+      createdAt: new Date('2026-09-27T12:00:00.000Z'),
+      indexingRevision: 'revision-1',
+      indexingStatus: 'ready',
+    };
+    const findUnique = vi.fn().mockResolvedValue(record);
+    const repository = createPrismaNotesRepository({ note: { findUnique } } as never);
+
+    await expect(repository.getById(record.id)).resolves.toEqual({
+      id: record.id,
+      title: record.title,
+      content: record.content,
+      sourceUrl: record.sourceUrl,
+      createdAt: record.createdAt.toISOString(),
+    });
+    expect(findUnique).toHaveBeenCalledExactlyOnceWith({ where: { id: record.id } });
+  });
+
+  it('returns null when the note ID is not found', async () => {
+    const findUnique = vi.fn().mockResolvedValue(null);
+    const repository = createPrismaNotesRepository({ note: { findUnique } } as never);
+
+    await expect(repository.getById('missing-note')).resolves.toBeNull();
+  });
+
   it('requests newest notes first with a stable ID tie-breaker', async () => {
     const findMany = vi.fn().mockResolvedValue([]);
     const repository = createPrismaNotesRepository({ note: { findMany } } as never);
@@ -34,5 +64,50 @@ describe('Prisma notes repository', () => {
       create: { ...input, id: jobId },
     });
     expect(note).toMatchObject({ id: jobId, title: input.title, sourceUrl: input.sourceUrl });
+  });
+
+  it('marks changed notes pending with a fresh revision without exposing indexing metadata', async () => {
+    const id = '7d5b9456-eb94-414f-a129-da4aa1bb2c45';
+    const previousRevision = 'previous-revision';
+    const input = { title: 'Updated', content: 'Changed content.' };
+    const update = vi.fn().mockResolvedValue({
+      ...input,
+      id,
+      sourceUrl: null,
+      createdAt: new Date('2026-09-27T12:00:00.000Z'),
+      updatedAt: new Date('2026-09-27T12:01:00.000Z'),
+      indexingRevision: previousRevision,
+      indexingStatus: 'ready',
+      indexingError: null,
+    });
+    const repository = createPrismaNotesRepository({ note: { update } } as never);
+
+    const note = await repository.update(id, input);
+
+    expect(update).toHaveBeenCalledExactlyOnceWith({
+      where: { id },
+      data: {
+        ...input,
+        indexingRevision: expect.any(String),
+        indexingStatus: 'pending',
+        indexingError: null,
+      },
+    });
+    const updateCall = update.mock.calls[0];
+    if (!updateCall) throw new Error('Expected the note update call.');
+    expect(updateCall[0].data.indexingRevision).not.toBe(previousRevision);
+    expect(note).not.toHaveProperty('indexingRevision');
+    expect(note).not.toHaveProperty('indexingStatus');
+  });
+
+  it('reads the persisted indexing revision without selecting public note data', async () => {
+    const findUnique = vi.fn().mockResolvedValue({ indexingRevision: 'revision-1' });
+    const repository = createPrismaNotesRepository({ note: { findUnique } } as never);
+
+    await expect(repository.getIndexingRevision('note-1')).resolves.toBe('revision-1');
+    expect(findUnique).toHaveBeenCalledExactlyOnceWith({
+      where: { id: 'note-1' },
+      select: { indexingRevision: true },
+    });
   });
 });

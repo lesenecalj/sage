@@ -7,11 +7,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum NoteIndexingStatus {
+  pending
+  ready
+  failed
+}
+
 model Note {
-  id        String   @id @default(uuid())
-  title     String
-  content   String
-  sourceUrl String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                     String             @id @default(uuid())
+  title                  String
+  content                String
+  sourceUrl              String?
+  indexingRevision       String             @default(uuid())
+  indexedRevision        String?
+  indexedPipelineVersion String?
+  indexingStatus         NoteIndexingStatus @default(pending)
+  indexingError          String?            @db.VarChar(500)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 }

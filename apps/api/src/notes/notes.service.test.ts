@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Note } from '@sage/contracts';
 import type { CreateNoteInput, NotesRepository, UpdateNoteInput } from './notes.repository.js';
+import { RETRIEVAL_PIPELINE_VERSION } from './retrieval/note-splitter.js';
+import type { NoteIndexingJobs } from './retrieval/note-indexing-jobs.port.js';
 import {
   createNotesService,
   type NoteGenerationStage,
@@ -29,17 +31,25 @@ function createRepositoryStub(): NotesRepository {
   return {
     create: vi.fn(async (noteInput) => createNote(noteId, noteInput)),
     createGenerated: vi.fn(async (id, noteInput) => createNote(id, noteInput)),
+    getById: vi.fn(async () => null),
+    getIndexingRevision: vi.fn(async () => 'revision-1'),
     list: vi.fn(async () => []),
     update: vi.fn(async (_id: string, _noteInput: UpdateNoteInput) => null),
     delete: vi.fn(async (_id: string) => false),
   };
 }
 
+function createIndexingJobsStub(): Pick<NoteIndexingJobs, 'enqueue'> {
+  return { enqueue: vi.fn(async () => {}) };
+}
+
 describe('NotesService', () => {
   let service: NotesService;
+  let indexingJobs: Pick<NoteIndexingJobs, 'enqueue'>;
 
   beforeEach(() => {
-    service = createNotesService(createRepositoryStub(), { summarize: async () => '' });
+    indexingJobs = createIndexingJobsStub();
+    service = createNotesService(createRepositoryStub(), { summarize: async () => '', indexingJobs });
   });
 
   it('normalizes valid input before creating a note', async () => {
@@ -56,7 +66,7 @@ describe('NotesService', () => {
 
   it('rejects invalid input without creating a note', async () => {
     const repository = createRepositoryStub();
-    service = createNotesService(repository, { summarize: async () => '' });
+    service = createNotesService(repository, { summarize: async () => '', indexingJobs });
 
     await expect(service.create({ title: '', content: 'Content' })).resolves.toEqual({
       success: false,
@@ -68,7 +78,7 @@ describe('NotesService', () => {
   it('rejects invalid job input before reading or summarizing the page', async () => {
     const readPage = vi.fn();
     const summarize = vi.fn();
-    const service = createNotesService(createRepositoryStub(), { readPage, summarize });
+    const service = createNotesService(createRepositoryStub(), { readPage, summarize, indexingJobs });
 
     await expect(service.processGenerationJob({
       id: noteId,
@@ -86,6 +96,7 @@ describe('NotesService', () => {
     const service = createNotesService(repository, {
       readPage: async () => page,
       summarize: async () => 'Generated content',
+      indexingJobs,
     });
     const jobId = '7d5b9456-eb94-414f-a129-da4aa1bb2c45';
 
@@ -102,6 +113,42 @@ describe('NotesService', () => {
       content: 'Generated content',
       sourceUrl: page.url,
     });
+    expect(indexingJobs.enqueue).toHaveBeenCalledWith({
+      noteId: jobId,
+      sourceRevision: 'revision-1',
+      pipelineVersion: RETRIEVAL_PIPELINE_VERSION,
+    });
+  });
+
+  it.each([false, true])('reuses the persisted note on redelivery (edited: %s)', async (edited) => {
+    const repository = createRepositoryStub();
+    const readPage = vi.fn().mockResolvedValueOnce(page)
+      .mockRejectedValue(new Error('Page unavailable on redelivery'));
+    const summarize = vi.fn().mockResolvedValueOnce('Generated content')
+      .mockRejectedValue(new Error('Model unavailable on redelivery'));
+    const reportProgress = vi.fn(async (_stage: NoteGenerationStage) => {});
+    service = createNotesService(repository, { readPage, summarize, indexingJobs });
+    const job = {
+      id: noteId,
+      input: { url: 'https://react.dev/', instruction: 'Summarize React practices' },
+      reportProgress,
+    };
+
+    const generatedNote = await service.processGenerationJob(job);
+    const persistedNote = edited
+      ? { ...generatedNote, title: 'User title', content: 'User edits' }
+      : generatedNote;
+    vi.mocked(repository.getById).mockResolvedValue(persistedNote);
+    reportProgress.mockClear();
+
+    await expect(service.processGenerationJob(job)).resolves.toEqual(persistedNote);
+
+    expect(repository.getById).toHaveBeenCalledTimes(2);
+    expect(repository.getById).toHaveBeenLastCalledWith(noteId);
+    expect(readPage).toHaveBeenCalledOnce();
+    expect(summarize).toHaveBeenCalledOnce();
+    expect(repository.createGenerated).toHaveBeenCalledOnce();
+    expect(reportProgress).not.toHaveBeenCalled();
   });
 
   it.each(['reading', 'summarizing'] as const)('does not save a note when %s fails', async (stage) => {
@@ -112,7 +159,7 @@ describe('NotesService', () => {
     const summarize = stage === 'summarizing'
       ? vi.fn().mockRejectedValue(new Error('Model unavailable'))
       : vi.fn().mockResolvedValue('Summary');
-    service = createNotesService(repository, { readPage, summarize });
+    service = createNotesService(repository, { readPage, summarize, indexingJobs });
 
     await expect(service.processGenerationJob({
       id: noteId,
@@ -128,6 +175,7 @@ describe('NotesService', () => {
     service = createNotesService(repository, {
       readPage: async () => page,
       summarize: async () => '  ',
+      indexingJobs,
     });
 
     await expect(service.processGenerationJob({
@@ -136,6 +184,55 @@ describe('NotesService', () => {
       reportProgress: async () => {},
     })).rejects.toThrow('empty summary');
     expect(repository.createGenerated).not.toHaveBeenCalled();
+  });
+
+  it('enqueues indexing after creating a note', async () => {
+    const repository = createRepositoryStub();
+    service = createNotesService(repository, { summarize: async () => '', indexingJobs });
+
+    const result = await service.create({ title: 'Title', content: 'Content' });
+
+    expect(result.success).toBe(true);
+    expect(indexingJobs.enqueue).toHaveBeenCalledWith({
+      noteId,
+      sourceRevision: 'revision-1',
+      pipelineVersion: RETRIEVAL_PIPELINE_VERSION,
+    });
+  });
+
+  it('enqueues indexing after updating a note', async () => {
+    const repository = createRepositoryStub();
+    vi.mocked(repository.update).mockResolvedValue(createNote(noteId, {
+      title: 'Updated',
+      content: 'Updated content',
+    }));
+    service = createNotesService(repository, { summarize: async () => '', indexingJobs });
+
+    const result = await service.update(noteId, { title: 'Updated', content: 'Updated content' });
+
+    expect(result.success).toBe(true);
+    expect(indexingJobs.enqueue).toHaveBeenCalledWith({
+      noteId,
+      sourceRevision: 'revision-1',
+      pipelineVersion: RETRIEVAL_PIPELINE_VERSION,
+    });
+  });
+
+  it('does not fail a persisted note when indexing enqueue fails', async () => {
+    const repository = createRepositoryStub();
+    const enqueue = vi.fn().mockRejectedValue(new Error('Redis unavailable'));
+    const logError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    service = createNotesService(repository, { summarize: async () => '', indexingJobs: { enqueue } });
+
+    try {
+      const result = await service.create({ title: 'Title', content: 'Content' });
+
+      expect(result.success).toBe(true);
+      expect(repository.create).toHaveBeenCalledOnce();
+      expect(logError).toHaveBeenCalledOnce();
+    } finally {
+      logError.mockRestore();
+    }
   });
 
 });

@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { fromUrlInputSchema } from './generation/from-url.input.js';
 import type { Note, NotesRepository, UpdateNoteInput } from './notes.repository.js';
 import { readWebPage, type WebPage } from './generation/web-page.js';
+import { RETRIEVAL_PIPELINE_VERSION } from './retrieval/note-splitter.js';
+import type { NoteIndexingJobs } from './retrieval/note-indexing-jobs.port.js';
 
 export type NoteGenerationStage = 'reading_page' | 'summarizing' | 'saving_note';
 export type ReportNoteGenerationStage = (stage: NoteGenerationStage) => Promise<void>;
@@ -11,6 +13,7 @@ export type NoteSummarizer = (page: WebPage, instruction: string) => Promise<str
 export type NoteGenerationOptions = {
   readPage?: (url: string) => Promise<WebPage>;
   summarize: NoteSummarizer;
+  indexingJobs: Pick<NoteIndexingJobs, 'enqueue'>;
 };
 
 export type GenerationJobContext = {
@@ -49,11 +52,33 @@ export type NotesService = {
 
 export function createNotesService(
   repository: NotesRepository,
-  { readPage = readWebPage, summarize }: NoteGenerationOptions,
+  { readPage = readWebPage, summarize, indexingJobs }: NoteGenerationOptions,
 ): NotesService {
+  // Queues the persisted revision for indexing; failures must not invalidate the saved note.
+  async function enqueueIndexing(noteId: string): Promise<void> {
+    try {
+      const sourceRevision = await repository.getIndexingRevision(noteId);
+      if (!sourceRevision) return;
+
+      await indexingJobs.enqueue({
+        noteId,
+        sourceRevision,
+        pipelineVersion: RETRIEVAL_PIPELINE_VERSION,
+      });
+    } catch (error) {
+      console.error(`Unable to enqueue indexing for note ${noteId}.`, error);
+    }
+  }
+
   const processGenerationJob: NoteGenerationHandler = async ({ id, input, reportProgress }) => {
     const result = fromUrlInputSchema.safeParse(input);
     if (!result.success) throw new Error('Invalid note generation job input.');
+
+    const existingNote = await repository.getById(id);
+    if (existingNote) {
+      await enqueueIndexing(existingNote.id);
+      return existingNote;
+    }
 
     await reportProgress('reading_page');
     const page = await readPage(result.data.url);
@@ -63,11 +88,13 @@ export function createNotesService(
     if (!content) throw new Error('The model returned an empty summary.');
 
     await reportProgress('saving_note');
-    return repository.createGenerated(id, {
+    const note = await repository.createGenerated(id, {
       title: page.title,
       content,
       sourceUrl: page.url,
     });
+    await enqueueIndexing(note.id);
+    return note;
   };
 
   return {
@@ -78,7 +105,9 @@ export function createNotesService(
         return { success: false, error: 'INVALID_INPUT' };
       }
 
-      return { success: true, note: await repository.create(result.data) };
+      const note = await repository.create(result.data);
+      await enqueueIndexing(note.id);
+      return { success: true, note };
     },
     processGenerationJob,
     async list() {
@@ -98,6 +127,7 @@ export function createNotesService(
         return { success: false, error: 'NOT_FOUND' };
       }
 
+      await enqueueIndexing(note.id);
       return { success: true, note };
     },
     async delete(id) {

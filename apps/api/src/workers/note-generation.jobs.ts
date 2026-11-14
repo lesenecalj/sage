@@ -6,8 +6,8 @@ import {
   type NoteGenerationJob,
   type NoteGenerationJobStatus,
 } from '@sage/contracts';
-import { fromUrlInputSchema, type FromUrlInput } from '../notes/generation/from-url.input.js';
-import type { NoteGenerationEvent, NoteGenerationJobs, SubmitNoteGenerationResult } from '../notes/generation/note-generation-jobs.port.js';
+import type { FromUrlInput } from '../notes/generation/from-url.input.js';
+import type { NoteGenerationEvent, NoteGenerationJobs } from './types.js';
 import {
   createNoteGenerationQueue,
   noteGenerationQueueName,
@@ -24,19 +24,23 @@ function statusFor(state: string): NoteGenerationJobStatus {
   return 'queued';
 }
 
-function toSnapshot(job: Job<FromUrlInput, NoteGenerationJobResult, string>, status: NoteGenerationJobStatus): NoteGenerationJob {
+function stageFor(
+  job: Job<FromUrlInput, NoteGenerationJobResult, string>,
+  status: NoteGenerationJobStatus,
+) {
+  if (status === 'completed') return 'completed';
+  if (status === 'failed') return 'failed';
+
   const progress = typeof job.progress === 'object' && job.progress !== null && 'stage' in job.progress
     ? noteGenerationJobStageSchema.safeParse(job.progress.stage)
     : null;
-  const stage = status === 'completed'
-    ? 'completed'
-    : status === 'failed'
-      ? 'failed'
-      : progress?.success
-        ? progress.data
-        : status === 'running'
-          ? 'reading_page'
-          : 'queued';
+
+  if (progress?.success) return progress.data;
+  return status === 'running' ? 'reading_page' : 'queued';
+}
+
+function toSnapshot(job: Job<FromUrlInput, NoteGenerationJobResult, string>, status: NoteGenerationJobStatus): NoteGenerationJob {
+  const stage = stageFor(job, status);
   const noteId = status === 'completed' && typeof job.returnvalue?.noteId === 'string'
     ? job.returnvalue.noteId
     : null;
@@ -124,15 +128,18 @@ export function createNoteGenerationJobs(queue: GenerationQueue, events: QueueEv
       subscribers.clear();
       await Promise.all([queue.close(), events.close()]);
     },
-    async submit(input): Promise<SubmitNoteGenerationResult> {
-      const result = fromUrlInputSchema.safeParse(input);
-      if (!result.success) return { success: false, error: 'INVALID_INPUT' };
-
+    async submit(input) {
       const jobId = randomUUID();
-      const job = await queue.add(noteGenerationQueueName, result.data, { jobId });
-      const snapshot = await readSnapshot(job);
-      if (!snapshot) throw new Error('Accepted generation job is unavailable.');
-      return { success: true, job: snapshot };
+      const job = await queue.add(noteGenerationQueueName, input, { jobId });
+      return {
+        id: jobId,
+        status: 'queued',
+        stage: 'queued',
+        noteId: null,
+        error: null,
+        createdAt: new Date(job.timestamp).toISOString(),
+        finishedAt: null,
+      };
     },
     get,
     async list() {

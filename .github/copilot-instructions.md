@@ -23,6 +23,10 @@ When the user asks to work step by step or pause between steps, complete only th
 
 Follow existing module boundaries and conventions. Keep backend and frontend conventions in their path-specific files under `.github/instructions/`. Add a skill only for a recurring, specialized workflow that is not already covered by concise instructions.
 
+## Database Schema Changes
+
+SAGE is pre-production. Treat `apps/api/prisma/schema.prisma` as the source of truth and use `prisma db push` to synchronize the local database. Do not create or maintain migration files during this phase. When production rollout becomes a real requirement, establish a migration-based deployment workflow and baseline from the current schema. Before destructive schema changes, inspect whether local data must be preserved and never use `db push --accept-data-loss` without explicit approval.
+
 ## Validation
 
 Use the repository's documented scripts and focused tests for changed behavior. Do not claim a command or check passed unless it was run successfully.

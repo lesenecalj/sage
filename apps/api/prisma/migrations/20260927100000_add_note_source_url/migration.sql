@@ -1,1 +1,0 @@
-ALTER TABLE "Note" ADD COLUMN "sourceUrl" TEXT;
