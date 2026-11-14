@@ -2,14 +2,57 @@ import { EventEmitter } from 'node:events';
 import type { QueueEvents } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';
 
+import { noteGenerationJobSchema } from '@sage/contracts';
 import { createNoteGenerationJobs } from './note-generation.jobs.js';
-import type { createNoteGenerationQueue } from './note-generation.queue.js';
+import { noteGenerationQueueName, type createNoteGenerationQueue } from './note-generation.queue.js';
 
 function createQueueStub(getJob: ReturnType<typeof vi.fn>) {
   return Object.assign(new EventEmitter(), { getJob }) as unknown as ReturnType<typeof createNoteGenerationQueue>;
 }
 
 describe('generation progress adapter', () => {
+  it('acknowledges an accepted job without reading Redis state again', async () => {
+    const timestamp = 1_760_000_000_000;
+    const getState = vi.fn().mockRejectedValue(new Error('Redis state read unavailable'));
+    const getJob = vi.fn().mockRejectedValue(new Error('Redis job read unavailable'));
+    const add = vi.fn(async (_name: string, _input: unknown, { jobId }: { jobId: string }) => ({
+      id: jobId, timestamp, getState,
+    }));
+    const queue = Object.assign(createQueueStub(getJob), { add });
+    const jobs = createNoteGenerationJobs(queue, new EventEmitter() as QueueEvents);
+    const input = { url: 'https://example.com/', instruction: 'Summarize the page' };
+
+    const result = await jobs.submit(input);
+
+    expect(result).toEqual({
+      success: true,
+      job: {
+        id: expect.any(String),
+        status: 'queued',
+        stage: 'queued',
+        noteId: null,
+        error: null,
+        createdAt: new Date(timestamp).toISOString(),
+        finishedAt: null,
+      },
+    });
+    if (!result.success) throw new Error('Expected an accepted job.');
+    expect(noteGenerationJobSchema.safeParse(result.job).success).toBe(true);
+    expect(add).toHaveBeenCalledExactlyOnceWith(noteGenerationQueueName, input, { jobId: result.job.id });
+    expect(getState).not.toHaveBeenCalled();
+    expect(getJob).not.toHaveBeenCalled();
+  });
+
+  it('propagates an enqueue failure instead of acknowledging an unaccepted job', async () => {
+    const failure = new Error('Redis enqueue unavailable');
+    const add = vi.fn().mockRejectedValue(failure);
+    const queue = Object.assign(createQueueStub(vi.fn()), { add });
+    const jobs = createNoteGenerationJobs(queue, new EventEmitter() as QueueEvents);
+
+    await expect(jobs.submit({ url: 'https://example.com/', instruction: 'Summarize' }))
+      .rejects.toBe(failure);
+  });
+
   it('handles queue and QueueEvents Redis errors and notifies active subscribers', () => {
     const queue = createQueueStub(vi.fn());
     const events = new EventEmitter();

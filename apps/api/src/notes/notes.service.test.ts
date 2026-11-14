@@ -31,6 +31,7 @@ function createRepositoryStub(): NotesRepository {
   return {
     create: vi.fn(async (noteInput) => createNote(noteId, noteInput)),
     createGenerated: vi.fn(async (id, noteInput) => createNote(id, noteInput)),
+    getById: vi.fn(async () => null),
     getIndexingRevision: vi.fn(async () => 'revision-1'),
     list: vi.fn(async () => []),
     update: vi.fn(async (_id: string, _noteInput: UpdateNoteInput) => null),
@@ -117,6 +118,37 @@ describe('NotesService', () => {
       sourceRevision: 'revision-1',
       pipelineVersion: RETRIEVAL_PIPELINE_VERSION,
     });
+  });
+
+  it.each([false, true])('reuses the persisted note on redelivery (edited: %s)', async (edited) => {
+    const repository = createRepositoryStub();
+    const readPage = vi.fn().mockResolvedValueOnce(page)
+      .mockRejectedValue(new Error('Page unavailable on redelivery'));
+    const summarize = vi.fn().mockResolvedValueOnce('Generated content')
+      .mockRejectedValue(new Error('Model unavailable on redelivery'));
+    const reportProgress = vi.fn(async (_stage: NoteGenerationStage) => {});
+    service = createNotesService(repository, { readPage, summarize, indexingJobs });
+    const job = {
+      id: noteId,
+      input: { url: 'https://react.dev/', instruction: 'Summarize React practices' },
+      reportProgress,
+    };
+
+    const generatedNote = await service.processGenerationJob(job);
+    const persistedNote = edited
+      ? { ...generatedNote, title: 'User title', content: 'User edits' }
+      : generatedNote;
+    vi.mocked(repository.getById).mockResolvedValue(persistedNote);
+    reportProgress.mockClear();
+
+    await expect(service.processGenerationJob(job)).resolves.toEqual(persistedNote);
+
+    expect(repository.getById).toHaveBeenCalledTimes(2);
+    expect(repository.getById).toHaveBeenLastCalledWith(noteId);
+    expect(readPage).toHaveBeenCalledOnce();
+    expect(summarize).toHaveBeenCalledOnce();
+    expect(repository.createGenerated).toHaveBeenCalledOnce();
+    expect(reportProgress).not.toHaveBeenCalled();
   });
 
   it.each(['reading', 'summarizing'] as const)('does not save a note when %s fails', async (stage) => {

@@ -26,6 +26,7 @@ function createRepositoryStub(): NotesRepository {
   return {
     create: vi.fn(async (input) => createNote(noteId, input)),
     createGenerated: vi.fn(async (id, input) => createNote(id, input)),
+    getById: vi.fn(async () => null),
     getIndexingRevision: vi.fn(async () => 'revision-1'),
     list: vi.fn(async () => []),
     update: vi.fn(async (_id: string, _input: UpdateNoteInput) => null),

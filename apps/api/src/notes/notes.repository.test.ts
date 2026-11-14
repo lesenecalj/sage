@@ -3,6 +3,36 @@ import { describe, expect, it, vi } from 'vitest';
 import { createPrismaNotesRepository } from './notes.repository.js';
 
 describe('Prisma notes repository', () => {
+  it('reads a note by ID without exposing internal fields', async () => {
+    const record = {
+      id: '7d5b9456-eb94-414f-a129-da4aa1bb2c45',
+      title: 'Existing note',
+      content: 'Saved content',
+      sourceUrl: 'https://example.com/',
+      createdAt: new Date('2026-09-27T12:00:00.000Z'),
+      indexingRevision: 'revision-1',
+      indexingStatus: 'ready',
+    };
+    const findUnique = vi.fn().mockResolvedValue(record);
+    const repository = createPrismaNotesRepository({ note: { findUnique } } as never);
+
+    await expect(repository.getById(record.id)).resolves.toEqual({
+      id: record.id,
+      title: record.title,
+      content: record.content,
+      sourceUrl: record.sourceUrl,
+      createdAt: record.createdAt.toISOString(),
+    });
+    expect(findUnique).toHaveBeenCalledExactlyOnceWith({ where: { id: record.id } });
+  });
+
+  it('returns null when the note ID is not found', async () => {
+    const findUnique = vi.fn().mockResolvedValue(null);
+    const repository = createPrismaNotesRepository({ note: { findUnique } } as never);
+
+    await expect(repository.getById('missing-note')).resolves.toBeNull();
+  });
+
   it('requests newest notes first with a stable ID tie-breaker', async () => {
     const findMany = vi.fn().mockResolvedValue([]);
     const repository = createPrismaNotesRepository({ note: { findMany } } as never);

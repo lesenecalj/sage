@@ -134,9 +134,18 @@ export function createNoteGenerationJobs(queue: GenerationQueue, events: QueueEv
 
       const jobId = randomUUID();
       const job = await queue.add(noteGenerationQueueName, result.data, { jobId });
-      const snapshot = await readSnapshot(job);
-      if (!snapshot) throw new Error('Accepted generation job is unavailable.');
-      return { success: true, job: snapshot };
+      return {
+        success: true,
+        job: {
+          id: jobId,
+          status: 'queued',
+          stage: 'queued',
+          noteId: null,
+          error: null,
+          createdAt: new Date(job.timestamp).toISOString(),
+          finishedAt: null,
+        },
+      };
     },
     get,
     async list() {

@@ -11,6 +11,7 @@ export type UpdateNoteInput = Pick<Note, 'title' | 'content'>;
 export type NotesRepository = {
   create(input: CreateNoteInput): Promise<Note>;
   createGenerated(id: string, input: CreateNoteInput): Promise<Note>;
+  getById(id: string): Promise<Note | null>;
   getIndexingRevision(id: string): Promise<string | null>;
   list(): Promise<Note[]>;
   update(id: string, input: UpdateNoteInput): Promise<Note | null>;
@@ -42,6 +43,10 @@ export function createPrismaNotesRepository(
         create: { ...input, id },
       });
       return toNote(note);
+    },
+    async getById(id) {
+      const note = await prisma.note.findUnique({ where: { id } });
+      return note ? toNote(note) : null;
     },
     async getIndexingRevision(id) {
       const note = await prisma.note.findUnique({

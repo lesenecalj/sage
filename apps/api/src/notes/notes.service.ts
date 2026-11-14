@@ -54,6 +54,7 @@ export function createNotesService(
   repository: NotesRepository,
   { readPage = readWebPage, summarize, indexingJobs }: NoteGenerationOptions,
 ): NotesService {
+  // Queues the persisted revision for indexing; failures must not invalidate the saved note.
   async function enqueueIndexing(noteId: string): Promise<void> {
     try {
       const sourceRevision = await repository.getIndexingRevision(noteId);
@@ -72,6 +73,12 @@ export function createNotesService(
   const processGenerationJob: NoteGenerationHandler = async ({ id, input, reportProgress }) => {
     const result = fromUrlInputSchema.safeParse(input);
     if (!result.success) throw new Error('Invalid note generation job input.');
+
+    const existingNote = await repository.getById(id);
+    if (existingNote) {
+      await enqueueIndexing(existingNote.id);
+      return existingNote;
+    }
 
     await reportProgress('reading_page');
     const page = await readPage(result.data.url);
